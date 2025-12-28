@@ -41,6 +41,8 @@ jobs:
         mkdir -p pages\ui
         
     - name: Build application
+      env:
+        UNITYPY_PATH: C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\site-packages\UnityPy
       run: |
         .\build.ps1
         
