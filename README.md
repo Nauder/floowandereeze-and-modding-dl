@@ -45,7 +45,7 @@ A modding tool for Yu-Gi-Oh! Duel Links, built with PySide6 (Qt6) for Windows.
 
 ## Installation
 
-For end-user documentation, refer to the [documentation](https://nauder.github.io/floowandereeze-and-modding-dl).
+For end-user documentation, refer to the [documentation](https://nauder.github.io/floowandereeze-and-modding-dl)
 
 1. Clone the repository:
 
