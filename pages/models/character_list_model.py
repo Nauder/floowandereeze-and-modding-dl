@@ -31,7 +31,8 @@ class CharacterListModel(AssetListModel):
 
         refresh_threads = [
             Thread(target=lambda character=char: self._refresh_character(character))
-            for char in self.assets if char.icon
+            for char in self.assets
+            if char.icon
         ]
 
         for thread in refresh_threads:

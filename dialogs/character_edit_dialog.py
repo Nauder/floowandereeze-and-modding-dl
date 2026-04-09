@@ -28,7 +28,7 @@ from util.constants import IMAGE_FILTER, APP_CONFIG
 from util.ui_util import show_toast
 from util.enums import CharaAssetType
 
-
+# pylint: disable=[invalid-name]
 class CharacterEditDialog(QDialog):
     """Modal dialog for editing character assets."""
 
@@ -64,7 +64,12 @@ class CharacterEditDialog(QDialog):
             if icon and icon.availableSizes():
                 raw = icon.pixmap(icon.availableSizes()[0])
                 self.character_icon.setPixmap(
-                    raw.scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    raw.scaled(
+                        64,
+                        64,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
                 )
         header_layout.addWidget(self.character_icon)
 
@@ -274,7 +279,12 @@ class CharacterEditDialog(QDialog):
             if icon and icon.availableSizes():
                 raw = icon.pixmap(icon.availableSizes()[0])
                 self.current_preview.setPixmap(
-                    raw.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    raw.scaled(
+                        256,
+                        256,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
                 )
         except Exception:
             self.current_preview.setText("Preview not available")
@@ -303,7 +313,12 @@ class CharacterEditDialog(QDialog):
             # Show preview of new image
             pixmap = QPixmap(local_file)
             self.new_preview.setPixmap(
-                pixmap.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                pixmap.scaled(
+                    256,
+                    256,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
             )
 
             self._update_replace_button_state()
@@ -353,7 +368,12 @@ class CharacterEditDialog(QDialog):
                 if icon and icon.availableSizes():
                     raw = icon.pixmap(icon.availableSizes()[0])
                     self.current_preview.setPixmap(
-                        raw.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                        raw.scaled(
+                            256,
+                            256,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
+                        )
                     )
             except Exception:
                 pass
@@ -384,7 +404,12 @@ class CharacterEditDialog(QDialog):
                     if icon and icon.availableSizes():
                         raw = icon.pixmap(icon.availableSizes()[0])
                         self.current_preview.setPixmap(
-                            raw.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                            raw.scaled(
+                                256,
+                                256,
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation,
+                            )
                         )
                 except Exception:
                     pass
@@ -431,7 +456,12 @@ class CharacterEditDialog(QDialog):
                 # Show preview of new image
                 pixmap = QPixmap(file_path)
                 self.new_preview.setPixmap(
-                    pixmap.scaled(256, 256, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    pixmap.scaled(
+                        256,
+                        256,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
                 )
 
                 self._update_replace_button_state()

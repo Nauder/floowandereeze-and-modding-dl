@@ -228,8 +228,7 @@ def update_characters() -> None:
 
         characters_to_add = []
         for _, character_row in remote_characters.iterrows():
-            if pd.isnull(character_row["konami_id"]
-            ):
+            if pd.isnull(character_row["konami_id"]):
                 continue
 
             # Create new character model
