@@ -9,8 +9,8 @@ from requests.exceptions import RequestException, Timeout, HTTPError
 from pandas import read_parquet, DataFrame
 from pandas.errors import EmptyDataError
 
-from database.models import SleeveModel, CardModel, FieldModel
-from database.objects import session
+from database.models import SleeveModel, CardModel, FieldModel, CharacterModel
+from database.objects import DBsession
 
 
 def get_github_raw_file(
@@ -120,18 +120,27 @@ def update_sleeves() -> None:
     2. Deletes all existing sleeves from the database
     3. Adds all sleeves from the remote data
     """
-    remote_sleeves = get_github_parquet_file("data/sleeves.parquet")
-    session.query(SleeveModel).delete()
-    session.add_all(
-        [
-            SleeveModel(
-                medium_bundle=sleeve["medium"],
-                small_bundle=sleeve["small"],
-            )
-            for _, sleeve in remote_sleeves.iterrows()
-            if not pd.isnull(sleeve["medium"]) and not pd.isnull(sleeve["small"])
-        ]
-    )
+    # Create a new session for this thread
+    local_session = DBsession()
+    try:
+        remote_sleeves = get_github_parquet_file("data/sleeves.parquet")
+        local_session.query(SleeveModel).delete()
+        local_session.add_all(
+            [
+                SleeveModel(
+                    medium_bundle=sleeve["medium"],
+                    small_bundle=sleeve["small"],
+                )
+                for _, sleeve in remote_sleeves.iterrows()
+                if not pd.isnull(sleeve["medium"]) and not pd.isnull(sleeve["small"])
+            ]
+        )
+        local_session.commit()
+    except Exception:
+        local_session.rollback()
+        raise
+    finally:
+        local_session.close()
 
 
 def update_cards() -> None:
@@ -144,19 +153,28 @@ def update_cards() -> None:
     2. Deletes all existing cards from the database
     3. Adds all cards from the remote data with their bundle, name, description, and data_index
     """
-    remote_cards = get_github_parquet_file("data/cards.parquet")
-    session.query(CardModel).delete()
-    session.add_all(
-        [
-            CardModel(
-                name=card["name"],
-                large_bundle=card["large"],
-                medium_bundle=card["medium"],
-                small_bundle=card["small"],
-            )
-            for _, card in remote_cards.iterrows()
-        ]
-    )
+    # Create a new session for this thread
+    local_session = DBsession()
+    try:
+        remote_cards = get_github_parquet_file("data/cards.parquet")
+        local_session.query(CardModel).delete()
+        local_session.add_all(
+            [
+                CardModel(
+                    name=card["name"],
+                    large_bundle=card["large"],
+                    medium_bundle=card["medium"],
+                    small_bundle=card["small"],
+                )
+                for _, card in remote_cards.iterrows()
+            ]
+        )
+        local_session.commit()
+    except Exception:
+        local_session.rollback()
+        raise
+    finally:
+        local_session.close()
 
 
 def update_fields() -> None:
@@ -169,15 +187,77 @@ def update_fields() -> None:
     2. Deletes all existing fields from the database
     3. Adds all fields from the remote data with their bundle, flipped, and bottom properties
     """
-    remote_fields = get_github_parquet_file("data/fields.parquet")
-    session.query(FieldModel).delete()
-    session.add_all(
-        [
-            FieldModel(
-                medium_bundle=field["medium"],
-                small_bundle=field["small"],
+    # Create a new session for this thread
+    local_session = DBsession()
+    try:
+        remote_fields = get_github_parquet_file("data/fields.parquet")
+        local_session.query(FieldModel).delete()
+        local_session.add_all(
+            [
+                FieldModel(
+                    medium_bundle=field["medium"],
+                    small_bundle=field["small"],
+                )
+                for _, field in remote_fields.iterrows()
+                if not pd.isnull(field["medium"]) and not pd.isnull(field["small"])
+            ]
+        )
+        local_session.commit()
+    except Exception:
+        local_session.rollback()
+        raise
+    finally:
+        local_session.close()
+
+
+def update_characters() -> None:
+    """
+    Updates the characters in the database by completely replacing all existing characters
+    with the latest data from the remote source.
+
+    This function:
+    1. Fetches the latest characters data from the remote parquet file
+    2. Deletes all existing characters from the database
+    3. Adds all characters from the remote data with their name, konami_id, series, and asset bundles
+    """
+    # Create a new session for this thread
+    local_session = DBsession()
+    try:
+        remote_characters = get_github_parquet_file("data/characters.parquet")
+        local_session.query(CharacterModel).delete()
+
+        characters_to_add = []
+        for _, character_row in remote_characters.iterrows():
+            if pd.isnull(character_row["konami_id"]
+            ):
+                continue
+
+            # Create new character model
+            character = CharacterModel(
+                konami_id=character_row["konami_id"],
+                series=(
+                    character_row["series"]
+                    if not pd.isnull(character_row["series"])
+                    else "unknown"
+                ),
             )
-            for _, field in remote_fields.iterrows()
-            if not pd.isnull(field["medium"]) and not pd.isnull(field["small"])
-        ]
-    )
+
+            # Set asset bundles for each available asset type
+            # The parquet file should have columns matching the CharacterAssets attribute names
+            from database.models import CharacterAssets
+
+            for attr_name in CharacterAssets._ENUM_TO_ATTR.values():
+                if attr_name in character_row and not pd.isnull(
+                    character_row[attr_name]
+                ):
+                    setattr(character, attr_name, character_row[attr_name])
+
+            characters_to_add.append(character)
+
+        local_session.add_all(characters_to_add)
+        local_session.commit()
+    except Exception:
+        local_session.rollback()
+        raise
+    finally:
+        local_session.close()

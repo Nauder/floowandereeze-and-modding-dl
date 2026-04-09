@@ -8,10 +8,10 @@ import pathlib
 from typing import List, Type
 
 from PySide6 import QtWidgets, QtCore
-from PySide6.QtWidgets import QSplashScreen
 from pyqttoast import ToastPreset
 
 from pages.card import Card
+from pages.character import Character
 from pages.config import Config
 from pages.field import Field
 from pages.sleeve import Sleeve
@@ -35,7 +35,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         splash: The splash screen widget used during application startup
     """
 
-    def __init__(self, splash: QSplashScreen):
+    def __init__(self, splash: QtWidgets.QSplashScreen):
         """
         Initialize the main window.
 
@@ -62,6 +62,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
                 Sleeve,
                 Card,
                 Field,
+                Character,
             ]
 
             # Always load the Config page first
@@ -111,6 +112,7 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
             self.actionsleeve_button,
             self.actioncard_button,
             self.actionfield_button,
+            self.actioncharacter_button,
         ]
 
         for index, button in enumerate(buttons):

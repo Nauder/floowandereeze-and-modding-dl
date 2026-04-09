@@ -109,6 +109,7 @@ QPushButton:hover {
    <addaction name="actionsleeve_button"/>
    <addaction name="actioncard_button"/>
    <addaction name="actionfield_button"/>
+   <addaction name="actioncharacter_button"/>
   </widget>
   <action name="actionconfig_button">
    <property name="icon">
@@ -156,6 +157,21 @@ QPushButton:hover {
    </property>
    <property name="toolTip">
     <string>field button</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actioncharacter_button">
+   <property name="icon">
+    <iconset resource="../resources.qrc">
+     <normaloff>:/ui/images/icon.png</normaloff>:/ui/images/icon.png</iconset>
+   </property>
+   <property name="text">
+    <string>character button</string>
+   </property>
+   <property name="toolTip">
+    <string>character button</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

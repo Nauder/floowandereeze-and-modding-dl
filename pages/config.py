@@ -18,6 +18,7 @@ from services.update_service import (
     update_sleeves,
     update_cards,
     update_fields,
+    update_characters,
     get_github_raw_file,
 )
 from util.constants import APP_CONFIG, IMAGE_FILTER, BG_TEMPLATE
@@ -293,6 +294,7 @@ class Config(QWidget, Ui_Config):
                 Thread(target=update_sleeves),
                 Thread(target=update_cards),
                 Thread(target=update_fields),
+                Thread(target=update_characters),
             ]
 
             for thread in update_threads:
