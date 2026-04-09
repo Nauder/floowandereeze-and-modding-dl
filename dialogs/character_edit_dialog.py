@@ -28,6 +28,7 @@ from util.constants import IMAGE_FILTER, APP_CONFIG
 from util.ui_util import show_toast
 from util.enums import CharaAssetType
 
+
 # pylint: disable=[invalid-name]
 class CharacterEditDialog(QDialog):
     """Modal dialog for editing character assets."""
