@@ -8,6 +8,7 @@ from PySide6.QtGui import QPixmap, QIcon, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
+    QCheckBox,
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -32,7 +33,6 @@ from unity.unity_utils import fetch_bundle_thumb
 from util.constants import IMAGE_FILTER, APP_CONFIG
 from util.ui_util import show_toast
 from util.enums import CharaAssetType
-from util.image_utils import content_bounds
 from util.image_utils import slugify
 from widgets.crop_overlay_widget import CropOverlayWidget
 
@@ -210,6 +210,14 @@ class CharacterEditDialog(QDialog):
 
         right_layout.addLayout(fit_layout)
 
+        self.preserve_padding_checkbox = QCheckBox("Preserve original transparent padding")
+        self.preserve_padding_checkbox.setChecked(True)
+        self.preserve_padding_checkbox.setToolTip(
+            "In Crop mode, fit to the original visible content and restore its transparent margins. "
+            "Turn off to use the full texture area."
+        )
+        right_layout.addWidget(self.preserve_padding_checkbox)
+
         # New image preview (stretch label + crop overlay in a stack)
         new_preview_label = QLabel("New Image Preview:")
         replacement_layout.addWidget(new_preview_label)
@@ -282,6 +290,10 @@ class CharacterEditDialog(QDialog):
         if self._crop_mode:
             self.service.crop_rect = self._crop_widget.get_crop_rect_normalized()
 
+    def _on_padding_toggled(self, checked: bool) -> None:
+        self.service.preserve_transparent_padding = checked
+        self._on_selection_changed()
+
     def _load_image(self, path: str) -> None:
         self.image_path_edit.setText(path)
         self.service.image_path = path
@@ -320,6 +332,7 @@ class CharacterEditDialog(QDialog):
         self.restore_btn.clicked.connect(self._restore_asset)
         self._stretch_btn.clicked.connect(lambda: self._set_fit_mode('stretch'))
         self._crop_btn.clicked.connect(lambda: self._set_fit_mode('crop'))
+        self.preserve_padding_checkbox.toggled.connect(self._on_padding_toggled)
 
     def _populate_asset_list(self):
         """Populate the asset list with character's available assets."""
@@ -439,7 +452,9 @@ class CharacterEditDialog(QDialog):
             if icon and icon.availableSizes():
                 raw = icon.pixmap(icon.availableSizes()[0])
                 if not raw.isNull():
-                    left, top, right, bottom = content_bounds(fromqimage(raw.toImage()))
+                    left, top, right, bottom = self.service.replacement_content_bounds(
+                        bundle, fromqimage(raw.toImage())
+                    )
                     self._asset_ratio = (right - left) / (bottom - top)
                 self.current_preview.setPixmap(
                     raw.scaled(

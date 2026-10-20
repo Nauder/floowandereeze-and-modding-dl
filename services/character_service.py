@@ -1,23 +1,60 @@
 import struct
+from pathlib import Path
 
 from PIL import Image, ImageOps
 from UnityPy.enums import TextureFormat
 from typing_extensions import override
 
-from database.models import CharacterModel
-from database.objects import session
+from database.models import CharacterModel, CharacterAssetLayout
+from database.objects import session, DBsession
 from services.unity_service import UnityService
 from unity.unity_utils import prepare_environment
 from UnityPy import load as unity_load
 
 from util.constants import APP_CONFIG
-from util.image_utils import content_bounds, convert_image, crop_to_rect
+from util.image_utils import content_bounds, convert_image, crop_to_rect, slugify
 
 
 class CharacterService(UnityService):
 
     def __init__(self):
         super().__init__("characters")
+        self.preserve_transparent_padding = True
+
+    def original_content_bounds(
+        self, bundle: str, image: Image.Image
+    ) -> tuple[int, int, int, int]:
+        """Persist each bundle's initial layout before any replacement is written."""
+        # Use a separate transaction so previewing does not commit other UI edits.
+        with DBsession() as layout_session:
+            layout = layout_session.get(CharacterAssetLayout, bundle)
+            if layout and (layout.width, layout.height) == image.size:
+                return tuple(layout.bounds)
+
+            # Existing installations may already have replaced textures. Their
+            # original backup is authoritative when seeding the layout cache.
+            bounds = content_bounds(image)
+            backup = Path("backups") / self.subfolder / f"{slugify(bundle)}.png"
+            if backup.is_file():
+                with Image.open(backup) as original:
+                    if original.size == image.size:
+                        bounds = content_bounds(original)
+            if layout is None:
+                layout = CharacterAssetLayout(bundle=bundle)
+                layout_session.add(layout)
+            layout.width, layout.height = image.size
+            layout.bounds = list(bounds)
+            layout_session.commit()
+            return bounds
+
+    def replacement_content_bounds(
+        self, bundle: str, image: Image.Image
+    ) -> tuple[int, int, int, int]:
+        """Choose the original content area or full canvas for replacement."""
+        bounds = self.original_content_bounds(bundle, image)
+        if self.preserve_transparent_padding:
+            return bounds
+        return (0, 0, image.width, image.height)
 
     @override
     def replace_bundle(self) -> None:
@@ -39,9 +76,10 @@ class CharacterService(UnityService):
 
                 # Resize to original texture dimensions to keep sprite vertex data valid
                 orig_size = (data.m_Width, data.m_Height)
+                bounds = self.replacement_content_bounds(self.bundle, data.image)
                 if self.crop_rect:
                     # Keep the original content's position and transparent margins.
-                    left, top, right, bottom = content_bounds(data.image)
+                    left, top, right, bottom = bounds
                     content = ImageOps.fit(
                         new_img,
                         (right - left, bottom - top),

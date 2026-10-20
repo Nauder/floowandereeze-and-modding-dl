@@ -22,7 +22,7 @@ QtCore.QSettings.setPath(
     QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope, _TEMP.name
 )
 
-from database.models import SleeveModel, FieldModel, CharacterModel
+from database.models import SleeveModel, FieldModel, CharacterModel, CharacterAssetLayout
 from database.objects import session, engine
 from database.migrations import run_migrations
 from util.constants import APP_CONFIG
@@ -49,7 +49,7 @@ class QualityOfLifeTests(unittest.TestCase):
     def setUp(self):
         session.rollback()
         session.add(APP_CONFIG)
-        for model in (SleeveModel, FieldModel, CharacterModel):
+        for model in (SleeveModel, FieldModel, CharacterModel, CharacterAssetLayout):
             session.query(model).delete()
         APP_CONFIG.game_path = ""
         APP_CONFIG.version = "2026-10-19"
@@ -503,7 +503,7 @@ class QualityOfLifeTests(unittest.TestCase):
                 environment = MagicMock(objects=[texture])
                 environment.file.save.return_value = b"bundle"
                 service = CharacterService()
-                service.bundle = "test"
+                service.bundle = f"padding-{bounds}"
                 service.image_path = str(image)
                 service.crop_rect = (0.25, 0, 1, 1)
                 with patch("services.character_service.unity_load", return_value=environment), patch(
@@ -521,6 +521,138 @@ class QualityOfLifeTests(unittest.TestCase):
                     # RGBA resampling can round RGB channels by one level.
                     for actual, expected in zip(pixel[:3], (10, 20, 30)):
                         self.assertLessEqual(abs(actual - expected), 1)
+
+    def test_character_original_layout_survives_transparent_replacements(self):
+        from PIL import Image
+        from PIL.ImageQt import ImageQt
+        from services.character_service import CharacterService
+        from dialogs.character_edit_dialog import CharacterEditDialog
+        from util.enums import CharaAssetType
+
+        bounds = (20, 5, 80, 85)
+        original = Image.new("RGBA", (120, 100))
+        original.paste((255, 255, 255, 255), bounds)
+        source = Image.new("RGBA", (60, 80))
+        source.paste((255, 0, 0, 128), (15, 20, 45, 60))
+        image = Path("transparent-character.png").resolve()
+        source.save(image)
+        self.addCleanup(image.unlink)
+        output = Path("transparent-bundle").resolve()
+        self.addCleanup(lambda: output.unlink(missing_ok=True))
+
+        data = MagicMock(m_Width=120, m_Height=100, image=original)
+        texture = MagicMock()
+        texture.type.name = "Texture2D"
+        texture.read.return_value = data
+        environment = MagicMock(objects=[texture])
+        environment.file.save.return_value = b"bundle"
+        results = []
+        # Each pass uses a new service, as happens when reopening the modal.
+        with patch("services.character_service.unity_load", return_value=environment), patch(
+            "services.character_service.prepare_environment", return_value=str(output)
+        ):
+            for _ in range(3):
+                service = CharacterService()
+                service.bundle = "transparent"
+                service.image_path = str(image)
+                service.crop_rect = (0, 0, 1, 1)
+                service.replace_bundle()
+                data.image = data.set_image.call_args.kwargs["img"]
+                results.append(data.image.tobytes())
+                self.assertEqual(service.original_content_bounds(service.bundle, data.image), bounds)
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(results[0], results[2])
+        self.assertNotEqual(data.image.getchannel("A").getbbox(), bounds)
+
+        icon = QtGui.QIcon(QtGui.QPixmap.fromImage(ImageQt(data.image)))
+        with patch("dialogs.character_edit_dialog.fetch_bundle_thumb", return_value=icon):
+            dialog = CharacterEditDialog(CharacterModel(series="DM"))
+            self.addCleanup(dialog.close)
+            item = QtWidgets.QListWidgetItem()
+            item.setData(QtCore.Qt.ItemDataRole.UserRole, (CharaAssetType.ICON, "transparent"))
+            dialog._on_asset_selected(item)
+            self.assertAlmostEqual(dialog._asset_ratio, 60 / 80)
+
+    def test_character_padding_toggle_updates_crop_ratio(self):
+        from dialogs.character_edit_dialog import CharacterEditDialog
+
+        asset = QtGui.QPixmap(120, 100)
+        asset.fill(QtCore.Qt.GlobalColor.transparent)
+        painter = QtGui.QPainter(asset)
+        painter.fillRect(QtCore.QRect(20, 5, 60, 80), QtCore.Qt.GlobalColor.red)
+        painter.end()
+        image = Path("padding-toggle.png").resolve()
+        asset.save(str(image))
+        self.addCleanup(image.unlink)
+        with patch("dialogs.character_edit_dialog.fetch_bundle_thumb", return_value=QtGui.QIcon(asset)):
+            dialog = CharacterEditDialog(CharacterModel(series="DM", icon="toggle"))
+            self.addCleanup(dialog.close)
+            self.assertTrue(dialog.preserve_padding_checkbox.isChecked())
+            self.assertTrue(dialog.service.preserve_transparent_padding)
+            dialog.asset_list.setCurrentRow(0)
+            dialog._load_image(str(image))
+            dialog._crop_btn.click()
+
+            for enabled, ratio in ((False, 1.2), (True, 0.75)):
+                dialog.preserve_padding_checkbox.setChecked(enabled)
+                self.assertEqual(dialog.service.preserve_transparent_padding, enabled)
+                self.assertAlmostEqual(dialog._asset_ratio, ratio)
+                self.assertAlmostEqual(dialog._crop_widget._target_ratio, ratio)
+                left, top, right, bottom = dialog.service.crop_rect
+                self.assertAlmostEqual((right - left) * 120 / ((bottom - top) * 100), ratio)
+
+    def test_character_padding_toggle_controls_saved_margins(self):
+        from PIL import Image
+        from services.character_service import CharacterService
+
+        original = Image.new("RGBA", (120, 100))
+        bounds = (20, 5, 80, 85)
+        original.paste((255, 255, 255, 255), bounds)
+        source = Image.new("RGBA", (120, 100), (255, 0, 0, 255))
+        image = Path("padding-toggle-source.png").resolve()
+        source.save(image)
+        self.addCleanup(image.unlink)
+        output = Path("padding-toggle-bundle").resolve()
+        self.addCleanup(lambda: output.unlink(missing_ok=True))
+        data = MagicMock(m_Width=120, m_Height=100, image=original)
+        texture = MagicMock()
+        texture.type.name = "Texture2D"
+        texture.read.return_value = data
+        environment = MagicMock(objects=[texture])
+        environment.file.save.return_value = b"bundle"
+        service = CharacterService()
+        service.bundle = "toggle-save"
+        service.image_path = str(image)
+        service.crop_rect = (0, 0, 1, 1)
+        with patch("services.character_service.unity_load", return_value=environment), patch(
+            "services.character_service.prepare_environment", return_value=str(output)
+        ):
+            # Disabling padding first must still save the original layout.
+            for enabled, expected in ((False, (0, 0, 120, 100)), (True, bounds)):
+                service.preserve_transparent_padding = enabled
+                service.replace_bundle()
+                data.image = data.set_image.call_args.kwargs["img"]
+                self.assertEqual(data.image.size, (120, 100))
+                self.assertEqual(data.image.getchannel("A").getbbox(), expected)
+                self.assertEqual(service.original_content_bounds(service.bundle, data.image), bounds)
+
+    def test_character_original_layout_uses_existing_backup(self):
+        from PIL import Image
+        from services.character_service import CharacterService
+
+        backup = Path("backups/characters/original-layout.png")
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        self.addCleanup(lambda: backup.unlink(missing_ok=True))
+        original = Image.new("RGBA", (120, 100))
+        bounds = (10, 15, 100, 85)
+        original.paste((255, 255, 255, 255), bounds)
+        original.save(backup)
+        replacement = Image.new("RGBA", original.size, (255, 0, 0, 255))
+        service = CharacterService()
+        self.assertEqual(service.original_content_bounds("original-layout", replacement), bounds)
+        # The saved layout remains usable when the backup is no longer present.
+        backup.unlink()
+        self.assertEqual(CharacterService().original_content_bounds("original-layout", replacement), bounds)
 
     def test_locked_crop_stays_in_bounds_for_all_corner_drags(self):
         from widgets.crop_overlay_widget import CropOverlayWidget

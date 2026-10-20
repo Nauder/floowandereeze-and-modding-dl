@@ -7,7 +7,7 @@ including configuration, card data, and various UI assets.
 from typing import ClassVar, Optional, Any, List
 
 from PySide6.QtGui import QIcon
-from sqlalchemy import String, Integer, Boolean, LargeBinary, Text
+from sqlalchemy import String, Integer, Boolean, LargeBinary, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database.objects import base, engine
@@ -409,6 +409,17 @@ class CharacterModel(UnityAsset, base):
         attr_name = CharacterAssets._ENUM_TO_ATTR.get(asset_type)
         if attr_name:
             setattr(self, attr_name, bundle)
+
+
+class CharacterAssetLayout(base):
+    """Original texture layout, independent of replacement image transparency."""
+
+    __tablename__ = "character_asset_layout"
+
+    bundle: Mapped[str] = mapped_column(String, primary_key=True)
+    width: Mapped[int] = mapped_column(Integer)
+    height: Mapped[int] = mapped_column(Integer)
+    bounds: Mapped[list[int]] = mapped_column(JSON)
 
 
 base.metadata.create_all(engine)
