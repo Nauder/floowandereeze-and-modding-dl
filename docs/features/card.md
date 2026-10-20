@@ -1,6 +1,6 @@
 # Card Editor
 
-The Card Editor page allows you to modify card art and information in Yu-Gi-Oh! Duel Links. This page provides functionality to view, edit, replace, and manage card assets.
+The Card Editor page allows you to modify card art in Yu-Gi-Oh! Duel Links. This page provides functionality to view, replace, and manage card textures.
 
 ![Card Page Preview](../assets/ui/card.png)
 
@@ -29,7 +29,7 @@ crop rectangle or its corner handles. Your crop stays in place when the window r
 
 - Displays all available cards in a thumbnail view
 - Click on a card to select it for editing
-- Shows card names bellow thumbnails
+- Shows card names below thumbnails
 
 ### Preview Section
 

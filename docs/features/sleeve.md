@@ -62,6 +62,8 @@ names. Existing favorites and backup flags for sleeves and playmats are kept.
 - Checkbox to toggle border
 - Color picker for border customization
 - Border width is set to 15 pixels
+- **Fade** is available when the border is enabled. It applies the border fade
+  during replacement; the preview shows a simple border rather than the final fade.
 
 ## Usage
 

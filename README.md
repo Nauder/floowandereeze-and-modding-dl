@@ -22,7 +22,7 @@ A modding tool for Yu-Gi-Oh! Duel Links, built with PySide6 (Qt6) for Windows.
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
-- [Documentation](docs/README.md)
+- [Documentation](docs/index.md)
 - [Project Structure](#project-structure)
 - [Development](#development)
 - [Building](#building)
@@ -35,6 +35,11 @@ A modding tool for Yu-Gi-Oh! Duel Links, built with PySide6 (Qt6) for Windows.
   - Card Art
   - Card Sleeve
   - Playmat
+  - Character textures, including batch replacement, extraction, and restore
+- Searchable accessory names, character search and series filters, and favorites
+- Backup inventory with scoped ZIP import, export, and removal
+- Steam account discovery and configurable metadata sources
+- Responsive image editors with Stretch and Crop modes
 - Customizable compression and mipmap count for created assets
 
 ## Requirements
@@ -100,6 +105,18 @@ mkdocs serve
 ```
 
 This will serve the documentation in the `docs/` directory at <https://localhost:8000>
+
+### Capturing GUI pictures automatically
+
+After configuring the app and downloading metadata, run:
+
+```powershell
+python capture_docs.py
+```
+
+This updates the documentation screenshots using the real GUI and a disposable
+database copy. See the [capture workflow](docs/development/screenshots.md) for page
+selection, review output, fixed window sizes, and offscreen capture.
 
 ## Project Structure
 

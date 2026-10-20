@@ -308,3 +308,6 @@ cython_debug/
 /backups
 /database.db
 *.session.sql
+
+CLAUDE.md
+AGENTS.md

@@ -39,6 +39,7 @@ nav:
     - Card Editor: features/card.md
     - Card Sleeve Editor: features/sleeve.md
     - Playmat Editor: features/field.md
+    - Character Editor: features/character.md
   
 extra:
   social:

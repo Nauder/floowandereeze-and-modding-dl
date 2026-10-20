@@ -56,14 +56,14 @@ class CharacterEditDialog(QDialog):
         self._crop_mode: bool = False
         self._asset_ratio: Optional[float] = None
 
-        self.setWindowTitle(f"Edit Character - {character.series}")
+        self.setWindowTitle(f"Editing {character.name}")
         self.setModal(True)
-        self.resize(800, 600)
         self.setAcceptDrops(True)
 
         self._setup_ui()
         self._populate_asset_list()
         self._connect_signals()
+        self.adjustSize()
 
     def _setup_ui(self):
         """Setup the dialog UI layout."""
@@ -74,7 +74,7 @@ class CharacterEditDialog(QDialog):
 
         # Character icon
         self.character_icon = QLabel()
-        self.character_icon.setFixedSize(64, 64)
+        self.character_icon.setFixedSize(32, 32)
         self.character_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if self.character.icon:
             icon = fetch_bundle_thumb(self.character.icon, None)
@@ -82,8 +82,8 @@ class CharacterEditDialog(QDialog):
                 raw = icon.pixmap(icon.availableSizes()[0])
                 self.character_icon.setPixmap(
                     raw.scaled(
-                        64,
-                        64,
+                        32,
+                        32,
                         Qt.AspectRatioMode.KeepAspectRatio,
                         Qt.TransformationMode.SmoothTransformation,
                     )
@@ -91,7 +91,7 @@ class CharacterEditDialog(QDialog):
         header_layout.addWidget(self.character_icon)
 
         # Title
-        title_label = QLabel(f"Editing {self.character.series} Character")
+        title_label = QLabel(f"Editing {self.character.name}")
         title_label.setStyleSheet("font-size: 16px; font-weight: bold;")
         header_layout.addWidget(title_label)
         header_layout.addStretch()
@@ -100,10 +100,13 @@ class CharacterEditDialog(QDialog):
 
         # Main content splitter
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setChildrenCollapsible(False)
 
         # Left side - Asset list with filter
         left_frame = QFrame()
         left_layout = QVBoxLayout(left_frame)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_frame.setMinimumWidth(220)
 
         # Filter combo box
         filter_label = QLabel("Filter by type:")
@@ -141,17 +144,26 @@ class CharacterEditDialog(QDialog):
         # Right side - Preview and image selection
         right_frame = QFrame()
         right_layout = QVBoxLayout(right_frame)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Compare the original and replacement without stacking two tall previews.
+        previews_layout = QHBoxLayout()
+        current_layout = QVBoxLayout()
+        replacement_layout = QVBoxLayout()
+        previews_layout.addLayout(current_layout)
+        previews_layout.addLayout(replacement_layout)
+        right_layout.addLayout(previews_layout)
 
         # Current asset preview
         preview_label = QLabel("Asset Preview:")
-        right_layout.addWidget(preview_label)
+        current_layout.addWidget(preview_label)
 
         self.current_preview = QLabel()
         self.current_preview.setFixedSize(256, 256)
         self.current_preview.setStyleSheet("border: 1px solid gray;")
         self.current_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.current_preview.setText("Select an asset to preview")
-        right_layout.addWidget(self.current_preview)
+        current_layout.addWidget(self.current_preview, 0, Qt.AlignmentFlag.AlignHCenter)
 
         # Image selection
         image_label = QLabel("Replacement Image:")
@@ -200,7 +212,7 @@ class CharacterEditDialog(QDialog):
 
         # New image preview (stretch label + crop overlay in a stack)
         new_preview_label = QLabel("New Image Preview:")
-        right_layout.addWidget(new_preview_label)
+        replacement_layout.addWidget(new_preview_label)
 
         self.new_preview = QLabel()
         self.new_preview.setFixedSize(256, 256)
@@ -217,14 +229,16 @@ class CharacterEditDialog(QDialog):
         self._mode_stack.addWidget(self.new_preview)   # index 0
         self._mode_stack.addWidget(self._crop_widget)  # index 1
 
-        right_layout.addWidget(self._mode_stack)
+        replacement_layout.addWidget(self._mode_stack, 0, Qt.AlignmentFlag.AlignHCenter)
 
         right_layout.addStretch()
 
         splitter.addWidget(right_frame)
-        splitter.setSizes([300, 500])
+        splitter.setSizes([240, right_frame.sizeHint().width()])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
 
-        layout.addWidget(splitter)
+        layout.addWidget(splitter, 1)
 
         # Bottom buttons
         button_layout = QHBoxLayout()

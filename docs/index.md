@@ -7,11 +7,14 @@ documentation will guide you through all the features and capabilities of the ap
 
 To begin using Floowandereeze & Modding:
 
-1. Download the application from the Releases tab
-2. Run the .exe file
-3. On first launch, provide the game's path when prompted
-4. The application will automatically download the latest data update
-5. Restart the application to access all features
+1. Download the application from the [Releases page](https://github.com/Nauder/floowandereeze-and-modding-dl/releases) and run the `.exe`.
+2. Download game assets through Duel Links, then close the game before editing.
+3. Open **Configuration** and use **Auto-detect** to select a downloaded Steam account, or select the installation, `LocalData`, or player folder manually.
+4. Click **Check** to load the asset metadata. Configuration also supports a different metadata repository, branch, or local ETL checkout.
+5. Open an asset tab to start editing. Tabs become available after a valid path is selected and refresh after a successful metadata update; restarting is unnecessary.
+
+Enable **Backups** in Configuration before replacing textures to save their originals.
+The **Backups** tab is available even without a configured game path.
 
 ## Documentation Sections
 
@@ -21,6 +24,8 @@ Explore the documentation to learn how to use all the features of Floowandereeze
 - [Card Editor](features/card.md) - Customize card art
 - [Card Sleeve Editor](features/sleeve.md) - Design custom card sleeves
 - [Playmat Editor](features/field.md) - Create unique playmat textures
+- [Character Editor](features/character.md) - Search characters and edit one or several character textures
+- [Backups](features/backups.md) - Browse originals, export and import ZIP archives, or remove selected backups
 
 ## Need Help?
 
