@@ -102,6 +102,6 @@ class AppSession:
 APP_SESSION: AppSession = AppSession()
 
 if not APP_CONFIG:
-    new_app = AppConfig()
+    new_app = AppConfig(game_path="")
     session.add(new_app)
     APP_CONFIG = new_app

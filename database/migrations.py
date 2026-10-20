@@ -38,6 +38,27 @@ def run_migrations(db_path: str = "database.db") -> None:
             conn.commit()
             logger.info("Migration completed: background_mode column added")
 
+        # Optional ETL labels keep existing installations and unnamed assets usable.
+        for table in ("sleeve", "field", "character"):
+            columns = get_columns(cursor, table)
+            if columns and "name" not in columns:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN name VARCHAR(255)")
+                cursor.execute("UPDATE app_config SET version = NULL")
+        conn.commit()
+
+        columns = get_columns(cursor, "app_config")
+        for name, definition in (
+            (
+                "metadata_repository",
+                "TEXT DEFAULT 'Nauder/floowandereeze-and-modding-etl-dl'",
+            ),
+            ("metadata_branch", "VARCHAR(255) DEFAULT ''"),
+            ("metadata_last_source", "TEXT"),
+        ):
+            if name not in columns:
+                cursor.execute(f"ALTER TABLE app_config ADD COLUMN {name} {definition}")
+        conn.commit()
+
         # Add future migrations here following the same pattern
         # Migration 2: Example for future use
         # if "some_future_column" not in get_columns(cursor, "some_table"):

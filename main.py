@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     try:
         # Create and show splash screen
-        splash_pixmap = QPixmap(":/ui/images/bg.png")
+        splash_pixmap = QPixmap(":/ui/images/bg.jpg")
         splash = QSplashScreen(splash_pixmap)
         splash.setFont(QFont("Segoe UI", 14))
         splash.showMessage("Starting...", 4, "#FFFFFF")

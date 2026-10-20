@@ -4,6 +4,16 @@ The Card Editor page allows you to modify card art and information in Yu-Gi-Oh! 
 
 ![Card Page Preview](../assets/ui/card.png)
 
+## Resizing and image fitting
+
+Resize the window to scale the Current and Preview images. Drag the dotted divider
+between the editor and results to change their relative heights; the app remembers
+this position and the window size. Results wrap into columns as space becomes available.
+On smaller windows, scroll the editor to reach its controls.
+
+Select or drop an image, then choose **Stretch** or **Crop**. In Crop mode, drag the
+crop rectangle or its corner handles. Your crop stays in place when the window resizes.
+
 ## Features
 
 - Card list with search functionality

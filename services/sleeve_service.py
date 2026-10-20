@@ -10,6 +10,7 @@ from util.image_utils import (
     add_sleeve_border,
     add_sleeve_border_with_fade,
     convert_image,
+    crop_to_rect,
 )
 
 
@@ -35,17 +36,17 @@ class SleeveService(UnityService):
 
                 data = obj.read()
 
+                raw = convert_image(self.image_path)
+                if self.crop_rect:
+                    raw = crop_to_rect(raw, self.crop_rect)
+
                 if self.border:
                     if self.border_fade:
-                        img = add_sleeve_border_with_fade(
-                            convert_image(self.image_path), self.border_color
-                        )
+                        img = add_sleeve_border_with_fade(raw, self.border_color)
                     else:
-                        img = add_sleeve_border(
-                            convert_image(self.image_path), self.border_color
-                        )
+                        img = add_sleeve_border(raw, self.border_color)
                 else:
-                    img = convert_image(self.image_path)
+                    img = raw
 
                 data.m_Width, data.m_Height = img.size
 

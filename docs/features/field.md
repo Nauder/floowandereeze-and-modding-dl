@@ -5,13 +5,34 @@ functionality to view, replace, and manage playmat assets.
 
 ![Field Page Preview](../assets/ui/field.png)
 
+## Resizing and image fitting
+
+Resize the window to scale the Current and Preview images. Drag the dotted divider
+between the editor and results to change their relative heights; the app remembers
+this position and the window size. Results wrap into columns as space becomes available.
+On smaller windows, scroll the editor to reach its controls.
+
+Select or drop an image, then choose **Stretch** or **Crop**. In Crop mode, drag the
+crop rectangle or its corner handles. Your crop stays in place when the window resizes.
+
 ## Features
 
 - Playmat list with preview
 - Playmat texture replacement
+- Automatic backups of both playmat bundles when backups are enabled
 - Texture extraction
 - Bundle copying
 - Real-time preview updates
+
+## Search
+
+Type at least three characters of an asset name or bundle ID, then press Enter or
+click Search. Suggestions match any part of a name. Clear the search box to show
+all results again. Asset names appear below the thumbnails; hover for the full name
+and bundle ID. Unnamed assets display their bundle ID.
+
+Use **Check** on the Configuration page after upgrading to download the new asset
+names. Existing favorites and backup flags for sleeves and playmats are kept.
 
 ## Interface Elements
 
@@ -35,6 +56,11 @@ functionality to view, replace, and manage playmat assets.
 - **Extract**: Extract the playmat texture
 
 ## Usage
+
+Enable backups in Configuration to save the original small and medium playmat
+textures under `backups/fields/` before replacement. Existing backups are kept
+when replacing the same playmat again. Use Configuration's **Restore all** action
+to restore backed-up textures, or the Backups page to export and import them.
 
 1. **Selecting a Playmat**
       - Click on a playmat in the list to select it

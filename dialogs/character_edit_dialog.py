@@ -1,9 +1,13 @@
 """Character editing dialog module."""
 
+from pathlib import Path
 from typing import Optional, List, Tuple
+from PIL.ImageQt import fromqimage
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QPixmap, QIcon, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QButtonGroup,
     QDialog,
     QVBoxLayout,
     QHBoxLayout,
@@ -17,6 +21,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QFileDialog,
     QMessageBox,
+    QStackedWidget,
 )
 from pyqttoast import ToastPreset
 
@@ -27,6 +32,14 @@ from unity.unity_utils import fetch_bundle_thumb
 from util.constants import IMAGE_FILTER, APP_CONFIG
 from util.ui_util import show_toast
 from util.enums import CharaAssetType
+from util.image_utils import content_bounds
+from util.image_utils import slugify
+from widgets.crop_overlay_widget import CropOverlayWidget
+
+_BTN_STYLE = (
+    "QPushButton { border: 1px solid gray; padding: 3px 10px; border-radius: 3px; }"
+    "QPushButton:checked { background-color: #3a7cc1; color: white; border-color: #2a6cb1; }"
+)
 
 
 # pylint: disable=[invalid-name]
@@ -39,6 +52,9 @@ class CharacterEditDialog(QDialog):
         self.service = CharacterService()
         self.selected_asset_bundle: Optional[str] = None
         self.selected_asset_type: Optional[CharaAssetType] = None
+
+        self._crop_mode: bool = False
+        self._asset_ratio: Optional[float] = None
 
         self.setWindowTitle(f"Edit Character - {character.series}")
         self.setModal(True)
@@ -105,8 +121,20 @@ class CharacterEditDialog(QDialog):
         left_layout.addWidget(assets_label)
 
         self.asset_list = QListWidget()
+        self.asset_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.asset_list.setIconSize(QSize(64, 64))
         left_layout.addWidget(self.asset_list)
+        selection_layout = QHBoxLayout()
+        self.select_all_btn = QPushButton("Select All")
+        self.clear_selection_btn = QPushButton("Clear")
+        selection_layout.addWidget(self.select_all_btn)
+        selection_layout.addWidget(self.clear_selection_btn)
+        left_layout.addLayout(selection_layout)
+        self.selection_label = QLabel("0 assets selected")
+        left_layout.addWidget(self.selection_label)
+        selection_hint = QLabel("Use Ctrl or Shift to select multiple assets.")
+        selection_hint.setWordWrap(True)
+        left_layout.addWidget(selection_hint)
 
         splitter.addWidget(left_frame)
 
@@ -140,7 +168,37 @@ class CharacterEditDialog(QDialog):
 
         right_layout.addLayout(image_layout)
 
-        # New image preview
+        # Fit mode buttons
+        fit_layout = QHBoxLayout()
+        fit_layout.addWidget(QLabel("Fit Mode:"))
+
+        self._stretch_btn = QPushButton("Stretch")
+        self._stretch_btn.setCheckable(True)
+        self._stretch_btn.setChecked(True)
+        self._stretch_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._stretch_btn.setStyleSheet(_BTN_STYLE)
+
+        self._crop_btn = QPushButton("Crop")
+        self._crop_btn.setCheckable(True)
+        self._crop_btn.setEnabled(False)
+        self._crop_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._crop_btn.setStyleSheet(_BTN_STYLE)
+        self._crop_btn.setToolTip(
+            "For multiple assets, each aspect ratio is fitted inside the shared crop area."
+        )
+
+        fit_layout.addWidget(self._stretch_btn)
+        fit_layout.addWidget(self._crop_btn)
+        fit_layout.addStretch()
+
+        self._fit_group = QButtonGroup(self)
+        self._fit_group.addButton(self._stretch_btn, 0)
+        self._fit_group.addButton(self._crop_btn, 1)
+        self._fit_group.setExclusive(True)
+
+        right_layout.addLayout(fit_layout)
+
+        # New image preview (stretch label + crop overlay in a stack)
         new_preview_label = QLabel("New Image Preview:")
         right_layout.addWidget(new_preview_label)
 
@@ -149,7 +207,17 @@ class CharacterEditDialog(QDialog):
         self.new_preview.setStyleSheet("border: 1px solid gray;")
         self.new_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.new_preview.setText("No image selected")
-        right_layout.addWidget(self.new_preview)
+
+        self._crop_widget = CropOverlayWidget()
+        self._crop_widget.setFixedSize(256, 256)
+        self._crop_widget.crop_changed.connect(self._on_crop_changed)
+
+        self._mode_stack = QStackedWidget()
+        self._mode_stack.setFixedSize(256, 256)
+        self._mode_stack.addWidget(self.new_preview)   # index 0
+        self._mode_stack.addWidget(self._crop_widget)  # index 1
+
+        right_layout.addWidget(self._mode_stack)
 
         right_layout.addStretch()
 
@@ -182,14 +250,62 @@ class CharacterEditDialog(QDialog):
         # Connect close button
         close_btn.clicked.connect(self.accept)
 
+    # ---------------------------------------------------------------- crop UI
+
+    def _set_fit_mode(self, mode: str) -> None:
+        self._crop_mode = (mode == 'crop')
+        if self._crop_mode:
+            if self.service.image_path:
+                ratio = None if len(self.asset_list.selectedItems()) > 1 else self._asset_ratio
+                self._crop_widget.set_image(self.service.image_path, ratio)
+                self.service.crop_rect = self._crop_widget.get_crop_rect_normalized()
+            self._mode_stack.setCurrentIndex(1)
+        else:
+            self.service.crop_rect = None
+            self._mode_stack.setCurrentIndex(0)
+
+    def _on_crop_changed(self) -> None:
+        if self._crop_mode:
+            self.service.crop_rect = self._crop_widget.get_crop_rect_normalized()
+
+    def _load_image(self, path: str) -> None:
+        self.image_path_edit.setText(path)
+        self.service.image_path = path
+
+        pixmap = QPixmap(path)
+        self.new_preview.setPixmap(
+            pixmap.scaled(
+                256,
+                256,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+
+        if self._crop_mode:
+            ratio = None if len(self.asset_list.selectedItems()) > 1 else self._asset_ratio
+            self._crop_widget.set_image(path, ratio)
+            self.service.crop_rect = self._crop_widget.get_crop_rect_normalized()
+            self._mode_stack.setCurrentIndex(1)
+        else:
+            self.service.crop_rect = None
+            self._mode_stack.setCurrentIndex(0)
+
+        self._update_replace_button_state()
+
     def _connect_signals(self):
         """Connect UI signals to their handlers."""
         self.filter_combo.currentTextChanged.connect(self._filter_assets)
-        self.asset_list.itemClicked.connect(self._on_asset_selected)
+        self.asset_list.itemSelectionChanged.connect(self._on_selection_changed)
+        self.asset_list.currentItemChanged.connect(lambda *_: self._on_selection_changed())
+        self.select_all_btn.clicked.connect(self.asset_list.selectAll)
+        self.clear_selection_btn.clicked.connect(self.asset_list.clearSelection)
         self.select_image_btn.clicked.connect(self._select_image)
         self.extract_btn.clicked.connect(self._extract_asset)
         self.replace_btn.clicked.connect(self._replace_asset)
         self.restore_btn.clicked.connect(self._restore_asset)
+        self._stretch_btn.clicked.connect(lambda: self._set_fit_mode('stretch'))
+        self._crop_btn.clicked.connect(lambda: self._set_fit_mode('crop'))
 
     def _populate_asset_list(self):
         """Populate the asset list with character's available assets."""
@@ -268,17 +384,49 @@ class CharacterEditDialog(QDialog):
 
                 self.asset_list.addItem(item)
 
+    def _selected_bundles(self) -> list[str]:
+        """Return unique selected bundles in list order."""
+        return list(dict.fromkeys(
+            item.data(Qt.ItemDataRole.UserRole)[1]
+            for item in self.asset_list.selectedItems()
+        ))
+
+    def _on_selection_changed(self):
+        items = self.asset_list.selectedItems()
+        count = len(items)
+        self.selection_label.setText(f"{count} assets selected")
+        for button, verb in ((self.extract_btn, "Extract"),
+                             (self.replace_btn, "Replace"),
+                             (self.restore_btn, "Restore")):
+            button.setText(f"{verb} {count} Assets" if count > 1 else f"{verb} Asset")
+        if items:
+            current = self.asset_list.currentItem()
+            self._on_asset_selected(current if current in items else items[0])
+            return
+        self.selected_asset_bundle = self.selected_asset_type = None
+        self.service.bundle = None
+        self._asset_ratio = None
+        self.current_preview.setText("Select an asset to preview")
+        self.extract_btn.setEnabled(False)
+        self.restore_btn.setEnabled(False)
+        self._crop_btn.setEnabled(False)
+        self._update_replace_button_state()
+
     def _on_asset_selected(self, item: QListWidgetItem):
         """Handle asset selection from the list."""
         asset_type, bundle = item.data(Qt.ItemDataRole.UserRole)
         self.selected_asset_type = asset_type
         self.selected_asset_bundle = bundle
+        self._asset_ratio = None
 
         # Update preview
         try:
             icon = fetch_bundle_thumb(bundle, None)
             if icon and icon.availableSizes():
                 raw = icon.pixmap(icon.availableSizes()[0])
+                if not raw.isNull():
+                    left, top, right, bottom = content_bounds(fromqimage(raw.toImage()))
+                    self._asset_ratio = (right - left) / (bottom - top)
                 self.current_preview.setPixmap(
                     raw.scaled(
                         256,
@@ -289,6 +437,17 @@ class CharacterEditDialog(QDialog):
                 )
         except Exception:
             self.current_preview.setText("Preview not available")
+
+        multiple = len(self.asset_list.selectedItems()) > 1
+        self._crop_btn.setEnabled(multiple or self._asset_ratio is not None)
+        ratio = None if multiple else self._asset_ratio
+        self._crop_widget.set_target_ratio(ratio, preserve_crop=multiple)
+        if self._crop_mode:
+            if self._asset_ratio is None and not multiple:
+                self._stretch_btn.setChecked(True)
+                self._set_fit_mode('stretch')
+            else:
+                self._on_crop_changed()
 
         # Enable buttons
         self.extract_btn.setEnabled(True)
@@ -307,22 +466,7 @@ class CharacterEditDialog(QDialog):
         )
 
         if file and file.url():
-            local_file = file.toLocalFile()
-            self.image_path_edit.setText(local_file)
-            self.service.image_path = local_file
-
-            # Show preview of new image
-            pixmap = QPixmap(local_file)
-            self.new_preview.setPixmap(
-                pixmap.scaled(
-                    256,
-                    256,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
-
-            self._update_replace_button_state()
+            self._load_image(file.toLocalFile())
 
     def _update_replace_button_state(self):
         """Update the replace button enabled state."""
@@ -330,108 +474,78 @@ class CharacterEditDialog(QDialog):
         has_asset = bool(self.selected_asset_bundle)
         self.replace_btn.setEnabled(has_image and has_asset)
 
-    def _extract_asset(self):
-        """Extract the selected asset to the characters folder."""
-        if not self.selected_asset_bundle:
+    def _run_asset_action(self, title, action):
+        """Apply an action to the selection and report partial failures together."""
+        bundles = self._selected_bundles()
+        if not bundles:
             return
-
+        succeeded = 0
+        errors = []
+        image_path, crop_rect = self.service.image_path, self.service.crop_rect
         try:
-            self.service.extract_texture(self.selected_asset_bundle)
-            show_toast(
-                self,
-                "Character Extraction",
-                'Asset extracted to the "characters" folder',
-                ToastPreset.SUCCESS_DARK,
-            )
-        except Exception as e:
-            QMessageBox.warning(
-                self, "Extraction Error", f"Failed to extract asset: {str(e)}"
-            )
+            for bundle in bundles:
+                self.service.bundle = bundle
+                try:
+                    action(bundle)
+                    succeeded += 1
+                except Exception as error:
+                    errors.append(f"{bundle}: {error}")
+                finally:
+                    # A failed restore may leave the service pointing at its backup.
+                    self.service.image_path = image_path
+                    self.service.crop_rect = crop_rect
+        finally:
+            self.service.bundle = self.selected_asset_bundle
 
-    def _replace_asset(self):
-        """Replace the selected asset with the chosen image."""
-        if not self.selected_asset_bundle or not self.service.image_path:
-            return
-
-        try:
-            # Create backup if enabled and not already backed up
-            if APP_CONFIG.create_backup and not self.character.has_backup:
-                self.service.create_backup(self.selected_asset_bundle)
-                self.character.has_backup = True
-                session.commit()
-
-            # Replace the asset
-            self.service.replace_bundle()
-
-            # Update the preview to show the new image
+        # Refresh thumbnails without rebuilding the list or resetting the shared crop.
+        for item in self.asset_list.selectedItems():
+            _, bundle = item.data(Qt.ItemDataRole.UserRole)
             try:
-                icon = fetch_bundle_thumb(self.selected_asset_bundle, None)
-                if icon and icon.availableSizes():
-                    raw = icon.pixmap(icon.availableSizes()[0])
-                    self.current_preview.setPixmap(
-                        raw.scaled(
-                            256,
-                            256,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation,
-                        )
-                    )
+                icon = fetch_bundle_thumb(bundle, None)
+                item.setIcon(icon)
+                if bundle == self.selected_asset_bundle and icon and icon.availableSizes():
+                    self.current_preview.setPixmap(icon.pixmap(icon.availableSizes()[0]).scaled(
+                        256, 256, Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    ))
             except Exception:
                 pass
-
-            show_toast(
-                self,
-                "Character Replacement",
-                "Asset replacement successful",
-                ToastPreset.SUCCESS_DARK,
-            )
-
-        except Exception as e:
+        if errors:
             QMessageBox.warning(
-                self, "Replacement Error", f"Failed to replace asset: {str(e)}"
+                self, title,
+                f"Completed {succeeded} of {len(bundles)} assets.\n\n" + "\n".join(errors),
             )
-            print(str(e))
+        else:
+            show_toast(self, title, f"Completed {succeeded} asset(s)", ToastPreset.SUCCESS_DARK)
 
-    def _restore_asset(self):
-        """Restore the selected asset from backup."""
-        if not self.selected_asset_bundle:
+    def _extract_asset(self):
+        """Extract every selected asset to the characters folder."""
+        self._run_asset_action("Character Extraction", self.service.extract_texture)
+
+    def _replace_asset(self):
+        """Replace selected assets using the same image and crop area."""
+        if not self.service.image_path:
             return
 
-        try:
-            if self.service.restore_asset():
-                # Update the preview
-                try:
-                    icon = fetch_bundle_thumb(self.selected_asset_bundle, None)
-                    if icon and icon.availableSizes():
-                        raw = icon.pixmap(icon.availableSizes()[0])
-                        self.current_preview.setPixmap(
-                            raw.scaled(
-                                256,
-                                256,
-                                Qt.AspectRatioMode.KeepAspectRatio,
-                                Qt.TransformationMode.SmoothTransformation,
-                            )
-                        )
-                except Exception:
-                    pass
+        def replace(bundle):
+            # Each bundle needs its own original, even if this character has backups.
+            if APP_CONFIG.create_backup:
+                backup = Path("backups") / self.service.subfolder / f"{slugify(bundle)}.png"
+                if not backup.is_file():
+                    self.service.create_backup(bundle)
+                self.character.has_backup = True
+                session.commit()
+            self.service.replace_bundle()
 
-                show_toast(
-                    self,
-                    "Character Restore",
-                    "Asset restored successfully",
-                    ToastPreset.SUCCESS_DARK,
-                )
-            else:
-                show_toast(
-                    self,
-                    "Character Restore",
-                    "Asset backup not found",
-                    ToastPreset.WARNING_DARK,
-                )
-        except Exception as e:
-            QMessageBox.warning(
-                self, "Restore Error", f"Failed to restore asset: {str(e)}"
-            )
+        self._run_asset_action("Character Replacement", replace)
+
+    def _restore_asset(self):
+        """Restore every selected asset that has a backup."""
+        def restore(_bundle):
+            if not self.service.restore_asset():
+                raise FileNotFoundError("Asset backup not found")
+
+        self._run_asset_action("Character Restore", restore)
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         """Accept drag and drop of image files."""
@@ -451,19 +565,5 @@ class CharacterEditDialog(QDialog):
         for url in event.mimeData().urls():
             file_path = url.toLocalFile()
             if file_path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
-                self.image_path_edit.setText(file_path)
-                self.service.image_path = file_path
-
-                # Show preview of new image
-                pixmap = QPixmap(file_path)
-                self.new_preview.setPixmap(
-                    pixmap.scaled(
-                        256,
-                        256,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
-                )
-
-                self._update_replace_button_state()
+                self._load_image(file_path)
                 break

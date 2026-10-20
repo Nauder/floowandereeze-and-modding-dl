@@ -2,6 +2,7 @@ from textwrap import shorten
 from threading import Thread
 
 from PySide6.QtGui import Qt
+from sqlalchemy import String, cast, func
 from typing_extensions import override
 
 from database.models import CharacterModel
@@ -16,6 +17,8 @@ class CharacterListModel(AssetListModel):
         super().__init__(characters or [], CharacterModel)
         self.show_favorites = False
         self.series_filter = ""
+        self.filter = ""
+        self.refresh()
 
     @override
     def refresh(self):
@@ -27,7 +30,31 @@ class CharacterListModel(AssetListModel):
         if self.show_favorites:
             query = query.filter(self.db_model.favorite == True)
 
-        self.assets = query.order_by(self.db_model.series).all()
+        display_name = func.coalesce(
+            func.nullif(self.db_model.name, ""),
+            "Character " + cast(self.db_model.konami_id, String),
+        )
+        if self.filter:
+            query = query.filter(display_name.icontains(self.filter, autoescape=True))
+
+        assets = query.order_by(
+            self.db_model.series.collate("NOCASE"),
+            display_name.collate("NOCASE"),
+            self.db_model.konami_id,
+        ).all()
+        self.beginResetModel()
+        self.assets = assets
+
+        self._fallback_thumb = None
+        if any(not character.icon for character in self.assets):
+            # 9998 is the generic "???" character; look it up outside list filters.
+            fallback_icon = (
+                session.query(self.db_model.icon)
+                .filter(self.db_model.konami_id == 9998)
+                .scalar()
+            )
+            if fallback_icon:
+                self._fallback_thumb = fetch_bundle_thumb(fallback_icon, (128, 128))
 
         refresh_threads = [
             Thread(target=lambda character=char: self._refresh_character(character))
@@ -39,13 +66,22 @@ class CharacterListModel(AssetListModel):
             thread.start()
         for thread in refresh_threads:
             thread.join()
+        self.endResetModel()
 
     def _refresh_character(self, character: CharacterModel):
         character.thumb = fetch_bundle_thumb(character.icon, (128, 128))
 
     def data(self, index, role):
         if role == Qt.DisplayRole:
-            return ""
+            asset = self.assets[index.row()]
+            return shorten(
+                asset.name or f"Character {asset.konami_id}", width=20, placeholder="..."
+            )
+
+        if role == Qt.ToolTipRole:
+            asset = self.assets[index.row()]
+            return asset.name or f"Character {asset.konami_id}"
 
         if role == Qt.DecorationRole:
-            return self.assets[index.row()].thumb
+            asset = self.assets[index.row()]
+            return asset.thumb if asset.icon else self._fallback_thumb

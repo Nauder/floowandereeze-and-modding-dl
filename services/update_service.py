@@ -1,7 +1,6 @@
-"""
-This module provides functionality to update the database with the latest data from the remote
-source.
-"""
+"""Update the database from local working-tree exports or a GitHub repository."""
+
+from pathlib import Path
 
 import pandas as pd
 import requests
@@ -9,19 +8,74 @@ from requests.exceptions import RequestException, Timeout, HTTPError
 from pandas import read_parquet, DataFrame
 from pandas.errors import EmptyDataError
 
-from database.models import SleeveModel, CardModel, FieldModel, CharacterModel
+from database.models import (
+    AppConfig,
+    SleeveModel,
+    CardModel,
+    FieldModel,
+    CharacterModel,
+)
 from database.objects import DBsession
+from util.metadata_source import (
+    DEFAULT_METADATA_REPOSITORY,
+    DEFAULT_METADATA_BRANCH,
+    normalize_metadata_source,
+    is_local_metadata_source,
+)
 
 
-def get_github_raw_file(
-    path: str, owner="Nauder", repo="floowandereeze-and-modding-etl-dl"
-) -> str:
+def _configured_source():
+    """Read saved settings with a separate session for each update worker."""
+    with DBsession() as local_session:
+        config = local_session.query(AppConfig).first()
+        return (
+            getattr(config, "metadata_repository", None) or DEFAULT_METADATA_REPOSITORY,
+            getattr(config, "metadata_branch", None) or DEFAULT_METADATA_BRANCH,
+        )
+
+
+def _local_metadata_file(path, owner=None, repo=None, branch=None):
+    """Read working-tree files directly unless a GitHub source was explicitly supplied."""
+    if any(value is not None for value in (owner, repo, branch)):
+        return None
+    repository, selected_branch = _configured_source()
+    if not is_local_metadata_source(repository):
+        return None
+    repository, _ = normalize_metadata_source(repository, selected_branch)
+    root = Path(repository)
+    file = (root / path).resolve()
+    if not file.is_relative_to(root):
+        raise ValueError("Metadata file must be inside the local repository.")
+    return file
+
+
+def _github_source(owner=None, repo=None, branch=None):
+    """Resolve saved GitHub settings or explicit overrides."""
+    repository, selected_branch = _configured_source()
+    if is_local_metadata_source(repository):
+        repository, selected_branch = (
+            DEFAULT_METADATA_REPOSITORY,
+            DEFAULT_METADATA_BRANCH,
+        )
+    repository, selected_branch = normalize_metadata_source(repository, selected_branch)
+    selected_owner, selected_repo = repository.split("/")
+    owner = selected_owner if owner is None else owner
+    repo = selected_repo if repo is None else repo
+    _, branch = normalize_metadata_source(
+        f"{owner}/{repo}", selected_branch if branch is None else branch
+    )
+    return owner, repo, {"ref": branch} if branch else {}
+
+
+def get_github_raw_file(path: str, owner=None, repo=None, branch=None) -> str:
     """
-    Fetch a raw file from a private GitHub repository using GitHub REST API.
+    Read a text file from the saved local checkout or GitHub source.
 
     :param owner: GitHub username or organization name that owns the repository.
     :param repo: Repository name.
     :param path: Path to the file in the repository.
+    :param branch: Optional branch/ref; blank follows the repository default.
+        Omitted source arguments use saved Configuration settings.
 
     :return: The raw content of the file.
     :raises HTTPError: If the GitHub API request fails
@@ -29,6 +83,10 @@ def get_github_raw_file(
     :raises RequestException: For other request-related errors
     :raises ValueError: If the response doesn't contain a download URL
     """
+    local_file = _local_metadata_file(path, owner, repo, branch)
+    if local_file is not None:
+        return local_file.read_text(encoding="utf-8")
+    owner, repo, params = _github_source(owner, repo, branch)
     # GitHub API URL for repository contents
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
 
@@ -37,7 +95,7 @@ def get_github_raw_file(
 
     try:
         # Send a GET request to fetch file metadata
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()  # Raises HTTPError for bad responses
 
         file_data = response.json()
@@ -62,15 +120,15 @@ def get_github_raw_file(
         raise RequestException(f"Request failed: {str(e)}") from e
 
 
-def get_github_parquet_file(
-    path: str, owner="Nauder", repo="floowandereeze-and-modding-etl-dl"
-) -> DataFrame:
+def get_github_parquet_file(path: str, owner=None, repo=None, branch=None) -> DataFrame:
     """
-    Fetch a raw file from a private GitHub repository using GitHub REST API.
+    Read a Parquet file from the saved local checkout or GitHub source.
 
     :param owner: GitHub username or organization name that owns the repository.
     :param repo: Repository name.
     :param path: Path to the file in the repository.
+    :param branch: Optional branch/ref; blank follows the repository default.
+        Omitted source arguments use saved Configuration settings.
 
     :return: The raw content of the file as a pandas DataFrame.
     :raises HTTPError: If the GitHub API request fails
@@ -79,6 +137,10 @@ def get_github_parquet_file(
     :raises ValueError: If the response doesn't contain a download URL
     :raises EmptyDataError: If the parquet file is empty or invalid
     """
+    local_file = _local_metadata_file(path, owner, repo, branch)
+    if local_file is not None:
+        return read_parquet(local_file)
+    owner, repo, params = _github_source(owner, repo, branch)
     # GitHub API URL for repository contents
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
 
@@ -87,7 +149,7 @@ def get_github_parquet_file(
 
     try:
         # Send a GET request to fetch file metadata
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, params=params, timeout=10)
         response.raise_for_status()
 
         file_data = response.json()
@@ -110,6 +172,12 @@ def get_github_parquet_file(
         raise EmptyDataError(f"Failed to read parquet file: {str(e)}") from e
 
 
+def asset_label(row):
+    """Accept both new named metadata and older Parquet exports."""
+    value = row.get("name")
+    return str(value).strip() or None if pd.notna(value) else None
+
+
 def update_sleeves() -> None:
     """
     Updates the sleeves in the database by completely replacing all existing sleeves
@@ -124,10 +192,17 @@ def update_sleeves() -> None:
     local_session = DBsession()
     try:
         remote_sleeves = get_github_parquet_file("data/sleeves.parquet")
-        local_session.query(SleeveModel).delete()
+        states = {
+            asset.medium_bundle: (asset.favorite, asset.has_backup)
+            for asset in local_session.query(SleeveModel).all()
+        }
+        local_session.query(SleeveModel).delete(synchronize_session=False)
         local_session.add_all(
             [
                 SleeveModel(
+                    name=asset_label(sleeve),
+                    favorite=states.get(sleeve["medium"], (False, False))[0],
+                    has_backup=states.get(sleeve["medium"], (False, False))[1],
                     medium_bundle=sleeve["medium"],
                     small_bundle=sleeve["small"],
                 )
@@ -191,10 +266,17 @@ def update_fields() -> None:
     local_session = DBsession()
     try:
         remote_fields = get_github_parquet_file("data/fields.parquet")
-        local_session.query(FieldModel).delete()
+        states = {
+            asset.medium_bundle: (asset.favorite, asset.has_backup)
+            for asset in local_session.query(FieldModel).all()
+        }
+        local_session.query(FieldModel).delete(synchronize_session=False)
         local_session.add_all(
             [
                 FieldModel(
+                    name=asset_label(field),
+                    favorite=states.get(field["medium"], (False, False))[0],
+                    has_backup=states.get(field["medium"], (False, False))[1],
                     medium_bundle=field["medium"],
                     small_bundle=field["small"],
                 )
@@ -233,6 +315,7 @@ def update_characters() -> None:
 
             # Create new character model
             character = CharacterModel(
+                name=asset_label(character_row),
                 konami_id=character_row["konami_id"],
                 series=(
                     character_row["series"]

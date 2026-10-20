@@ -156,6 +156,13 @@ def convert_image(path: str) -> Image.Image:
     return Image.open(path).convert("RGBA")
 
 
+def content_bounds(image: Image.Image) -> tuple[int, int, int, int]:
+    """Return visible alpha bounds, using the full canvas for an empty image."""
+    return image.convert("RGBA").getchannel("A").getbbox() or (
+        0, 0, image.width, image.height
+    )
+
+
 def change_image_ratio(img: Image, new_ratio: tuple):
     width, height = img.size
     original_ratio = width / height
@@ -226,6 +233,29 @@ def convert_to_png(img: Image.Image) -> Image.Image:
     png_image_buffer.seek(0)
 
     return png_image
+
+
+def crop_to_rect(
+    img: Image.Image,
+    crop_rect: tuple[float, float, float, float],
+) -> Image.Image:
+    """
+    Crop *img* to the region defined by *crop_rect*.
+
+    *crop_rect* is ``(left, top, right, bottom)`` where each value is a
+    fraction in the range 0..1 relative to the image dimensions.
+    """
+    w, h = img.size
+    left   = int(crop_rect[0] * w)
+    top    = int(crop_rect[1] * h)
+    right  = int(crop_rect[2] * w)
+    bottom = int(crop_rect[3] * h)
+    # Clamp to valid range
+    left, right  = max(0, left),  min(w, right)
+    top,  bottom = max(0, top),   min(h, bottom)
+    if right <= left or bottom <= top:
+        return img
+    return img.crop((left, top, right, bottom))
 
 
 def paste_scaled_image(bg_image, fg_image, bounding_box) -> Image.Image:

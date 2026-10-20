@@ -1,7 +1,18 @@
+from widgets.responsive_editor import ResponsiveEditor
 from typing_extensions import Optional
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import QFileDialog, QCompleter, QWidget, QCheckBox
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QStackedWidget,
+    QCompleter,
+    QWidget,
+    QCheckBox,
+)
 from pyqttoast import ToastPreset
 
 from database.models import CardModel
@@ -14,6 +25,15 @@ from unity.unity_utils import fetch_bundle_thumb
 from util.constants import IMAGE_FILTER, APP_CONFIG, CARD_ART_COORDINATES
 from util.enums import CardArtCoordinates
 from util.ui_util import show_toast
+from widgets.crop_overlay_widget import CropOverlayWidget
+from widgets.image_viewer import ImageViewer
+
+_CARD_CROP_RATIO = 1.0  # card art is square
+
+_BTN_STYLE = (
+    "QPushButton { border: 1px solid gray; padding: 3px 10px; border-radius: 3px; }"
+    "QPushButton:checked { background-color: #3a7cc1; color: white; border-color: #2a6cb1; }"
+)
 
 
 class Card(QWidget, Ui_Card):
@@ -26,6 +46,18 @@ class Card(QWidget, Ui_Card):
         self.cardsView.setModel(self.model)
         self.selected: Optional[CardModel] = None
 
+        self._crop_mode: bool = False
+        self._init_current_viewer()
+        self._setup_crop_ui()
+        self.responsive_editor = ResponsiveEditor(
+            self,
+            self.cardsView,
+            "cards",
+            1.0,
+            search=False,
+            header=self.horizontalLayout,
+        )
+
         # Enable drag and drop
         self.setAcceptDrops(True)
 
@@ -33,6 +65,115 @@ class Card(QWidget, Ui_Card):
         self.model.search_description = False
 
         self._connect_callbacks()
+
+    # ---------------------------------------------------------------- crop UI
+
+    def _init_current_viewer(self) -> None:
+        """Replace self.current QLabel with an ImageViewer (preserves aspect ratio)."""
+        old = self.current
+        max_size = old.maximumSize()
+        idx = self.main_content.indexOf(old)
+        self.main_content.removeWidget(old)
+        old.hide()
+        old.deleteLater()
+        viewer = ImageViewer()
+        viewer.setMaximumSize(max_size)
+        viewer.setMinimumSize(1, 1)
+        self.main_content.insertWidget(idx, viewer)
+        self.current = viewer
+
+    def _setup_crop_ui(self) -> None:
+        """Replace the preview QLabel with a mode-stack and add fit-mode buttons."""
+        # Replace QLabel with ImageViewer for aspect-ratio-correct display
+        old_preview = self.preview
+        max_size = old_preview.maximumSize()
+        idx = self.main_content.indexOf(old_preview)
+        self.main_content.removeWidget(old_preview)
+        old_preview.hide()
+        old_preview.deleteLater()
+
+        stretch_viewer = ImageViewer()
+        stretch_viewer.setMaximumSize(max_size)
+        stretch_viewer.setMinimumSize(100, 100)
+        self.preview = stretch_viewer  # existing setPixmap calls still work
+
+        self._mode_stack = QStackedWidget()
+        self._mode_stack.setMaximumSize(max_size)
+        self._mode_stack.setMinimumSize(100, 100)
+        self._mode_stack.addWidget(self.preview)  # index 0 – stretch
+
+        self._crop_widget = CropOverlayWidget()
+        self._crop_widget.setMaximumSize(self.preview.maximumSize())
+        self._crop_widget.setMinimumSize(150, 150)
+        self._crop_widget.crop_changed.connect(self._on_crop_changed)
+        self._mode_stack.addWidget(self._crop_widget)  # index 1 – crop
+
+        self.main_content.insertWidget(idx, self._mode_stack)
+
+        # 2. Fit-mode button row
+        fit_layout = QHBoxLayout()
+        fit_layout.addStretch()
+        fit_layout.addWidget(QLabel("Fit Mode:"))
+
+        self._stretch_btn = QPushButton("Stretch")
+        self._stretch_btn.setCheckable(True)
+        self._stretch_btn.setChecked(True)
+        self._stretch_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._stretch_btn.setStyleSheet(_BTN_STYLE)
+
+        self._crop_btn = QPushButton("Crop")
+        self._crop_btn.setCheckable(True)
+        self._crop_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._crop_btn.setStyleSheet(_BTN_STYLE)
+
+        fit_layout.addWidget(self._stretch_btn)
+        fit_layout.addWidget(self._crop_btn)
+        fit_layout.addStretch()
+
+        self._fit_group = QButtonGroup(self)
+        self._fit_group.addButton(self._stretch_btn, 0)
+        self._fit_group.addButton(self._crop_btn, 1)
+        self._fit_group.setExclusive(True)
+
+        # Insert after horizontalLayout_3 in verticalLayout
+        for i in range(self.verticalLayout.count()):
+            item = self.verticalLayout.itemAt(i)
+            if item.layout() == self.horizontalLayout_3:
+                self.verticalLayout.insertLayout(i + 1, fit_layout)
+                break
+
+        self._stretch_btn.clicked.connect(lambda: self._set_fit_mode("stretch"))
+        self._crop_btn.clicked.connect(lambda: self._set_fit_mode("crop"))
+
+    def _set_fit_mode(self, mode: str) -> None:
+        self._crop_mode = mode == "crop"
+        if self._crop_mode:
+            if self.service.image_path:
+                self._crop_widget.set_image(self.service.image_path, _CARD_CROP_RATIO)
+                self.service.crop_rect = self._crop_widget.get_crop_rect_normalized()
+            self._mode_stack.setCurrentIndex(1)
+        else:
+            self.service.crop_rect = None
+            self._mode_stack.setCurrentIndex(0)
+
+    def _on_crop_changed(self) -> None:
+        if self._crop_mode:
+            self.service.crop_rect = self._crop_widget.get_crop_rect_normalized()
+
+    def _load_image(self, path: str) -> None:
+        """Shared helper called when the user picks or drops an image."""
+        self.cardEdit.setText(path)
+        self.service.image_path = path
+        self.preview.setPixmap(QPixmap(path))
+        if self._crop_mode:
+            self._crop_widget.set_image(path, _CARD_CROP_RATIO)
+            self.service.crop_rect = self._crop_widget.get_crop_rect_normalized()
+            self._mode_stack.setCurrentIndex(1)
+        else:
+            self.service.crop_rect = None
+            self._mode_stack.setCurrentIndex(0)
+
+    # ----------------------------------------------------------- Qt overrides
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         """Accepts drag and drop of image files."""
@@ -53,10 +194,10 @@ class Card(QWidget, Ui_Card):
         for url in event.mimeData().urls():
             file_path = url.toLocalFile()
             if file_path.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
-                self.cardEdit.setText(file_path)
-                self.preview.setPixmap(QPixmap(file_path))
-                self.service.image_path = file_path
+                self._load_image(file_path)
                 break
+
+    # ---------------------------------------------------------------- private
 
     def _connect_callbacks(self):
         self.cardsView.clicked.connect(self._on_card_clicked)
@@ -67,6 +208,9 @@ class Card(QWidget, Ui_Card):
         self.searchButton.clicked.connect(self._search)
         self.restoreButton.clicked.connect(self._restore)
         self.searchEdit.returnPressed.connect(self._search)
+        self.searchEdit.setClearButtonEnabled(True)
+        self.searchEdit.setPlaceholderText("Search cards, min 3 characters")
+        self.searchEdit.textChanged.connect(self._search_text_changed)
         self.favorite.stateChanged.connect(self._toggle_favorite)
         self.favorites.stateChanged.connect(self._toggle_favorites_filter)
 
@@ -95,8 +239,12 @@ class Card(QWidget, Ui_Card):
         if self.model.show_favorites:
             self.model.refresh()
             self.model.layoutChanged.emit()
-        elif len(self.searchEdit.text()) >= 3:
-            self._search()
+        else:
+            self.model.filter = (
+                self.searchEdit.text() if len(self.searchEdit.text()) >= 3 else ""
+            )
+            self.model.refresh()
+            self.model.layoutChanged.emit()
 
     def _toggle_description_search(self, state):
         self.model.search_description = state == Qt.CheckState.Checked.value
@@ -132,6 +280,7 @@ class Card(QWidget, Ui_Card):
             f"Editing {self.model.assets[index.row()].name} ({self.selected.large_bundle})"
         )
 
+        self.label.setText(f"Cards - {self.selected.name}")
         self.replaceButton.setEnabled(True)
         self.extractButton.setEnabled(True)
         self.restoreButton.setEnabled(True)
@@ -142,11 +291,7 @@ class Card(QWidget, Ui_Card):
         file, _ = QFileDialog.getOpenFileUrl(self, "Select Image", "", IMAGE_FILTER)
 
         if file and file.url() != "":
-            local_file = file.toLocalFile()
-
-            self.cardEdit.setText(local_file)
-            self.preview.setPixmap(QPixmap(local_file))
-            self.service.image_path = local_file
+            self._load_image(file.toLocalFile())
 
     def _copy(self):
         if not self.service.unity_file:
@@ -193,6 +338,12 @@ class Card(QWidget, Ui_Card):
         show_toast(
             self, "Card", "Card replacement successful", ToastPreset.SUCCESS_DARK
         )
+
+    def _search_text_changed(self, text):
+        if not text:
+            self.model.filter = ""
+            self.model.refresh()
+            self.model.layoutChanged.emit()
 
     def _search(self):
         search_filter = self.searchEdit.text()

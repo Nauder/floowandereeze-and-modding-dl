@@ -7,7 +7,9 @@
     <file>images/gear.png</file>
     <file>images/field_icon.png</file>
     <file>images/field.png</file>
-    <file>images/bg.png</file>
+    <file>images/bg.jpg</file>
     <file>images/icon.png</file>
+    <file>images/character.png</file>
+    <file>images/backups.png</file>
   </qresource>
 </RCC>

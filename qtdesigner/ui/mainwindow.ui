@@ -28,7 +28,7 @@
   </property>
   <property name="styleSheet">
    <string notr="true">#centralwidget {
-	border-image: url(:/ui/images/bg.png);
+	border-image: url(:/ui/images/bg.jpg);
 	margin: 0;
 	padding: 0;
 }
@@ -41,7 +41,7 @@
     background-color: rgba(12, 12, 12, 0.7);
  }</string>
   </property>
-  <widget class="QWidget" name="centralwidget">
+  <widget class="CoverBackgroundWidget" name="centralwidget">
    <property name="sizePolicy">
     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
      <horstretch>0</horstretch>
@@ -110,6 +110,7 @@ QPushButton:hover {
    <addaction name="actioncard_button"/>
    <addaction name="actionfield_button"/>
    <addaction name="actioncharacter_button"/>
+   <addaction name="actionbackups_button"/>
   </widget>
   <action name="actionconfig_button">
    <property name="icon">
@@ -165,7 +166,7 @@ QPushButton:hover {
   <action name="actioncharacter_button">
    <property name="icon">
     <iconset resource="../resources.qrc">
-     <normaloff>:/ui/images/icon.png</normaloff>:/ui/images/icon.png</iconset>
+     <normaloff>:/ui/images/character.png</normaloff>:/ui/images/character.png</iconset>
    </property>
    <property name="text">
     <string>character button</string>
@@ -177,7 +178,26 @@ QPushButton:hover {
     <enum>QAction::MenuRole::NoRole</enum>
    </property>
   </action>
+  <action name="actionbackups_button">
+   <property name="icon">
+    <iconset resource="../resources.qrc">
+     <normaloff>:/ui/images/backups.png</normaloff>:/ui/images/backups.png</iconset>
+   </property>
+   <property name="text">
+    <string>Backups</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>CoverBackgroundWidget</class>
+   <extends>QWidget</extends>
+   <header>widgets.cover_background</header>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="../resources.qrc"/>
  </resources>

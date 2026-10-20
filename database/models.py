@@ -56,6 +56,11 @@ class AppConfig(base):
     packer: Mapped[str] = mapped_column(String(5), default="LZ4")
     create_backup: Mapped[bool] = mapped_column(Boolean, default=False)
     background_mode: Mapped[str] = mapped_column(String(10), default="stretched")
+    metadata_repository: Mapped[str] = mapped_column(
+        Text, default="Nauder/floowandereeze-and-modding-etl-dl"
+    )
+    metadata_branch: Mapped[str] = mapped_column(String(255), default="")
+    metadata_last_source: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 class SleeveModel(UnityAsset, base):
@@ -68,6 +73,8 @@ class SleeveModel(UnityAsset, base):
     """
 
     __tablename__ = "sleeve"
+
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     small_bundle: Mapped[str] = mapped_column(String(8), unique=True)
     medium_bundle: Mapped[str] = mapped_column(String(8), unique=True)
@@ -107,6 +114,8 @@ class FieldModel(UnityAsset, base):
     """
 
     __tablename__ = "field"
+
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     small_bundle: Mapped[str] = mapped_column(String(8), unique=True)
     medium_bundle: Mapped[str] = mapped_column(String(8), unique=True)
@@ -290,6 +299,8 @@ class CharacterModel(UnityAsset, base):
     """
 
     __tablename__ = "character"
+
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     konami_id: Mapped[int] = mapped_column(Integer, unique=True)
     series: Mapped[str] = mapped_column(String(255))

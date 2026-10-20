@@ -1,6 +1,6 @@
 import struct
 
-from PIL import Image
+from PIL import Image, ImageOps
 from UnityPy.enums import TextureFormat
 from typing_extensions import override
 
@@ -11,7 +11,7 @@ from unity.unity_utils import prepare_environment
 from UnityPy import load as unity_load
 
 from util.constants import APP_CONFIG
-from util.image_utils import convert_image
+from util.image_utils import content_bounds, convert_image, crop_to_rect
 
 
 class CharacterService(UnityService):
@@ -28,6 +28,8 @@ class CharacterService(UnityService):
         env = unity_load(f_path)
 
         new_img = convert_image(self.image_path)
+        if self.crop_rect:
+            new_img = crop_to_rect(new_img, self.crop_rect)
 
         orig_size = None
 
@@ -37,7 +39,17 @@ class CharacterService(UnityService):
 
                 # Resize to original texture dimensions to keep sprite vertex data valid
                 orig_size = (data.m_Width, data.m_Height)
-                if new_img.size != orig_size:
+                if self.crop_rect:
+                    # Keep the original content's position and transparent margins.
+                    left, top, right, bottom = content_bounds(data.image)
+                    content = ImageOps.fit(
+                        new_img,
+                        (right - left, bottom - top),
+                        method=Image.Resampling.LANCZOS,
+                    )
+                    new_img = Image.new("RGBA", orig_size, (0, 0, 0, 0))
+                    new_img.paste(content, (left, top))
+                elif new_img.size != orig_size:
                     new_img = new_img.resize(orig_size, Image.Resampling.LANCZOS)
 
                 data.set_image(

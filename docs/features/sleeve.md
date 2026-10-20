@@ -5,6 +5,16 @@ to view, replace, and customize card sleeves with optional border effects.
 
 ![Sleeve Page Preview](../assets/ui/sleeve.png)
 
+## Resizing and image fitting
+
+Resize the window to scale the Current and Preview images. Drag the dotted divider
+between the editor and results to change their relative heights; the app remembers
+this position and the window size. Results wrap into columns as space becomes available.
+On smaller windows, scroll the editor to reach its controls.
+
+Select or drop an image, then choose **Stretch** or **Crop**. In Crop mode, drag the
+crop rectangle or its corner handles. Your crop stays in place when the window resizes.
+
 ## Features
 
 - Card sleeve list with preview
@@ -13,6 +23,16 @@ to view, replace, and customize card sleeves with optional border effects.
 - Border customization
 - Backup and restore functionality
 - Real-time preview updates
+
+## Search
+
+Type at least three characters of an asset name or bundle ID, then press Enter or
+click Search. Suggestions match any part of a name. Clear the search box to show
+all results again. Asset names appear below the thumbnails; hover for the full name
+and bundle ID. Unnamed assets display their bundle ID.
+
+Use **Check** on the Configuration page after upgrading to download the new asset
+names. Existing favorites and backup flags for sleeves and playmats are kept.
 
 ## Interface Elements
 

@@ -49,6 +49,7 @@ def get_dark_mode_palette(app=None):
     dark_palette.setColor(QPalette.ToolTipBase, QColor(53, 53, 53))
     dark_palette.setColor(QPalette.ToolTipText, Qt.white)
     dark_palette.setColor(QPalette.Text, Qt.white)
+    dark_palette.setColor(QPalette.PlaceholderText, QColor(160, 160, 160))
     dark_palette.setColor(QPalette.Disabled, QPalette.Text, QColor(127, 127, 127))
     dark_palette.setColor(QPalette.Dark, QColor(35, 35, 35))
     dark_palette.setColor(QPalette.Shadow, QColor(20, 20, 20))

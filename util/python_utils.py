@@ -6,9 +6,6 @@ like string manipulation, list handling, and game path validation.
 
 import re
 from ast import literal_eval
-from os.path import exists, join
-
-from util.constants import FILE
 
 
 def get_instances_of_subclasses(base_class):
@@ -56,16 +53,14 @@ def is_valid_game_path(folder: str) -> list[bool | str]:
             - bool: True if the path is valid, False otherwise
             - str: Error message if invalid, None if valid
     """
-    try:
-        folder = join(folder[:-18], "dlpc_Data", FILE["UNITY"])
+    from util.game_discovery import normalize_game_path
 
-        if exists(folder):
-            return [True, None]
-        else:
-            return [False, "Could not locate Unity3D file"]
-
-    except Exception as e:
-        return [False, str(e)]
+    if folder and normalize_game_path(folder):
+        return [True, None]
+    return [
+        False,
+        "Select a Duel Links installation, LocalData, or player data folder containing dlpc_Data/data.unity3d.",
+    ]
 
 
 def remove_alt_tags(s):

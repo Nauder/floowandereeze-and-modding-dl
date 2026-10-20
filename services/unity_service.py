@@ -26,6 +26,9 @@ class UnityService(ABC):
         self.bundle = None
         self.subfolder: str = subfolder
         self.image_path: str | None = None
+        # Normalised (left, top, right, bottom) crop rect in 0..1 image coords.
+        # None means no crop (stretch mode).
+        self.crop_rect: tuple[float, float, float, float] | None = None
 
     @abstractmethod
     def replace_bundle(self) -> None:
@@ -41,52 +44,53 @@ class UnityService(ABC):
         Extracts a texture from a Unity bundle.
 
         :param name: The name of the texture to extract.
-        :param field: If the bundle is a field or not.
         :param miss: A boolean value indicating if the extraction failed to find the bundle in the
         LocalData folder.
         :return: None
         """
-        self.extract_asset_texture(name, "images", miss)
+        self.extract_asset_texture(name, "images", miss=miss)
 
-    def create_backup(self, name: str, field=False, miss=False) -> None:
+    def create_backup(self, name: str, miss=False) -> None:
         """
         Creates a backup of a Unity asset bundle.
 
         :param name: The name of the texture to extract.
-        :param field: If the bundle is a field or not.
         :param miss: A boolean value indicating if the extraction failed to find the bundle in the
         LocalData folder.
         :return: None
 
         """
-        self.extract_asset_texture(name, "backups", field, miss)
+        self.extract_asset_texture(name, "backups", miss=miss)
 
     def extract_asset_texture(self, name: str, folder: str, miss=False) -> None:
         """
         Extracts a texture from a Unity bundle.
 
-        :param field: If the bundle is a field or not.
         :param name: The name of the texture to extract.
+        :param folder: The destination root for the extracted texture.
         :param miss: A boolean value indicating if the extraction failed to find the bundle.
         :return: None
         """
-        found = False
+        try:
+            env = unity_load(prepare_environment(miss, self.bundle))
+        except FileNotFoundError:
+            if miss:
+                raise
+            return self.extract_asset_texture(name, folder, miss=True)
 
-        for obj in unity_load(prepare_environment(miss, self.bundle)).objects:
+        for obj in env.objects:
             if obj.type.name == "Texture2D":
                 data = obj.read()
 
-                found = True
+                makedirs(join(folder, self.subfolder), exist_ok=True)
+                dest = join(folder, self.subfolder, slugify(name) + ".png")
 
-                if found:
-                    makedirs(join(folder, self.subfolder), exist_ok=True)
-                    dest = join(folder, self.subfolder, slugify(name) + ".png")
+                data.image.save(dest)
+                return
 
-                    img = data.image
-                    img.save(dest)
-                    break
-        else:
-            return self.extract_texture(name, True)
+        if not miss:
+            return self.extract_asset_texture(name, folder, miss=True)
+        raise ValueError(f"No Texture2D found in bundle {self.bundle!r}")
 
     def restore_asset(self, backup_name=None) -> bool:
         """
@@ -101,9 +105,12 @@ class UnityService(ABC):
         )
         if isfile(backup_path):
             current_image = self.image_path
+            current_crop  = self.crop_rect
             self.image_path = backup_path
+            self.crop_rect  = None  # never crop when restoring a backup
             self.replace_bundle()
             self.image_path = current_image
+            self.crop_rect  = current_crop
             return True
         return False
 

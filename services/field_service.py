@@ -9,7 +9,7 @@ from UnityPy import load as unity_load
 
 from util.constants import APP_CONFIG
 from util.enums import FieldCoordinates
-from util.image_utils import convert_image, paste_scaled_image
+from util.image_utils import convert_image, crop_to_rect, paste_scaled_image
 
 
 class FieldService(UnityService):
@@ -32,6 +32,8 @@ class FieldService(UnityService):
                 data = obj.read()
 
                 img = convert_image(self.image_path)
+                if self.crop_rect:
+                    img = crop_to_rect(img, self.crop_rect)
 
                 data.m_Width, data.m_Height = img.size
 

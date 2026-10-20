@@ -4,19 +4,18 @@ This module provides the main application window that hosts all the different
 pages and handles navigation between them.
 """
 
-import pathlib
-from typing import List, Type
-
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtWidgets, QtCore, QtGui
 from pyqttoast import ToastPreset
 
+from pages.backups import Backups
 from pages.card import Card
 from pages.character import Character
 from pages.config import Config
 from pages.field import Field
 from pages.sleeve import Sleeve
 from pages.ui.main_window import Ui_MainWindow
-from util.python_utils import is_valid_game_path
+from util.game_discovery import normalize_game_path
+from database.objects import session
 from util.constants import APP_CONFIG, BG_TEMPLATE
 from util.ui_util import show_toast
 
@@ -45,100 +44,157 @@ class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
         super().__init__()
         self.splash = splash
         self.setupUi(self)
+        self._configure_navigation()
 
         self._load_pages()
         self._connect_menu_callbacks()
         self._load_bg()
 
+        self._window_settings = QtCore.QSettings("Floowandereeze", "DuelLinks")
+        geometry = self._window_settings.value("window/geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
         self.show()
 
     def _load_pages(self) -> None:
-        """Loads the pages into the main stack based on the validity of the game path."""
-        is_valid, error_message = is_valid_game_path(APP_CONFIG.game_path or "")
+        """Keep startup quick and create asset pages when first visited."""
+        self._page_classes = (Config, Sleeve, Card, Field, Character, Backups)
+        self.config_page = Config()
+        self.mainStack.addWidget(self.config_page)
+        self.config_page.gamePathChanged.connect(self._reset_asset_pages)
+        self.config_page.dataUpdated.connect(self._reset_asset_pages)
+        self._reset_asset_pages()
 
-        if APP_CONFIG.game_path and is_valid:
-            pages: List[Type[QtWidgets.QWidget]] = [
-                Config,
-                Sleeve,
-                Card,
-                Field,
-                Character,
-            ]
+    def _reset_asset_pages(self):
+        self.mainStack.setCurrentIndex(0)
+        while self.mainStack.count() > 1:
+            widget = self.mainStack.widget(1)
+            self.mainStack.removeWidget(widget)
+            widget.deleteLater()
+        self._loaded_pages = {0}
+        path = (
+            normalize_game_path(APP_CONFIG.game_path) if APP_CONFIG.game_path else None
+        )
+        if path and APP_CONFIG.game_path != path:
+            APP_CONFIG.game_path = path
+            session.commit()
+        valid = bool(path)
+        for action in (
+            self.actionsleeve_button,
+            self.actioncard_button,
+            self.actionfield_button,
+            self.actioncharacter_button,
+        ):
+            action.setEnabled(valid)
+        for _ in self._page_classes[1:]:
+            self.mainStack.addWidget(QtWidgets.QWidget())
 
-            # Always load the Config page first
-            self.mainStack.addWidget(Config())
-
-            # Try to load other pages, fallback to Config if they fail
-            for page in pages[1:]:  # Skip Config since it's already loaded
-                try:
-                    self.splash.showMessage(
-                        f"Loading {page.__name__}s...",
-                        alignment=QtCore.Qt.AlignBottom | QtCore.Qt.AlignCenter,
-                        color=QtCore.Qt.white,
-                    )
-                    self.mainStack.addWidget(page())
-                except Exception as e:
-                    show_toast(
-                        self,
-                        f"{page.__name__} Error",
-                        f"Failed to load {page.__name__} tab: {str(e)}",
-                        ToastPreset.WARNING_DARK,
-                    )
-                    # Add a placeholder widget that shows the error
-                    error_widget = QtWidgets.QWidget()
-                    layout = QtWidgets.QVBoxLayout()
-                    error_label = QtWidgets.QLabel(
-                        f"Failed to load {page.__name__} tab:\n{str(e)}"
-                    )
-                    error_label.setAlignment(QtCore.Qt.AlignCenter)
-                    layout.addWidget(error_label)
-                    error_widget.setLayout(layout)
-                    self.mainStack.addWidget(error_widget)
-        else:
-            if error_message and APP_CONFIG.game_path:
+    def _activate_page(self, index):
+        if index not in self._loaded_pages:
+            placeholder = self.mainStack.widget(index)
+            try:
+                page = self._page_classes[index]()
+            except Exception as error:
                 show_toast(
                     self,
-                    "Game Path",
-                    f"There was a problem with the Game Path: {error_message}",
+                    "Page",
+                    f"Could not load asset page: {error}",
                     ToastPreset.WARNING_DARK,
                 )
-            self.mainStack.addWidget(Config())
-            self.toolBar.setEnabled(False)
+                return
+            self.mainStack.removeWidget(placeholder)
+            placeholder.deleteLater()
+            self.mainStack.insertWidget(index, page)
+            self._loaded_pages.add(index)
+        self.mainStack.setCurrentIndex(index)
 
-    def _connect_menu_callbacks(self) -> None:
-        """Connects the menu buttons to their respective pages in the stack."""
-        buttons = [
+    def _configure_navigation(self) -> None:
+        """Match the equal-sized navigation buttons used in floo-qt."""
+        button_size = QtCore.QSize(92, 62)
+        icon_size = QtCore.QSize(30, 30)
+        style = QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        self.toolBar.setToolButtonStyle(style)
+        self.toolBar.setIconSize(icon_size)
+        self.toolBar.setStyleSheet(
+            """
+            QToolBar QToolButton {
+                color: #f2f2f2;
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 4px;
+            }
+            QToolBar QToolButton:hover,
+            QToolBar QToolButton:focus {
+                background-color: #303030;
+                border-color: #606060;
+            }
+            QToolBar QToolButton:pressed,
+            QToolBar QToolButton:checked {
+                background-color: #3b3b3b;
+                border-color: #808080;
+            }
+            QToolBar QToolButton:disabled {
+                color: #888888;
+                background-color: transparent;
+                border-color: transparent;
+            }
+            """
+        )
+        self._navigation_buttons = [
             self.actionconfig_button,
             self.actionsleeve_button,
             self.actioncard_button,
             self.actionfield_button,
             self.actioncharacter_button,
+            self.actionbackups_button,
         ]
+        labels = ["Configuration", "Sleeves", "Cards", "Fields", "Characters", "Backups"]
 
-        for index, button in enumerate(buttons):
-            button.triggered.connect(
-                lambda _, idx=index: self.mainStack.setCurrentIndex(idx)
-            )
+        for action, label in zip(self._navigation_buttons, labels):
+            action.setText(label)
+            action.setToolTip(label)
+            self._normalize_navigation_icon(action, icon_size)
+            tool_button = self.toolBar.widgetForAction(action)
+            if isinstance(tool_button, QtWidgets.QToolButton):
+                tool_button.setFixedSize(button_size)
+                tool_button.setIconSize(icon_size)
+                tool_button.setToolButtonStyle(style)
+
+    @staticmethod
+    def _normalize_navigation_icon(action: QtGui.QAction, size: QtCore.QSize) -> None:
+        """Center icons of different aspect ratios in equal square canvases."""
+        source = action.icon().pixmap(QtCore.QSize(256, 256))
+        if source.isNull():
+            return
+
+        source.setDevicePixelRatio(1)
+        scaled = source.scaled(
+            size,
+            QtCore.Qt.AspectRatioMode.KeepAspectRatio,
+            QtCore.Qt.TransformationMode.SmoothTransformation,
+        )
+        canvas = QtGui.QPixmap(size)
+        canvas.fill(QtCore.Qt.GlobalColor.transparent)
+        painter = QtGui.QPainter(canvas)
+        painter.drawPixmap(
+            (size.width() - scaled.width()) // 2,
+            (size.height() - scaled.height()) // 2,
+            scaled,
+        )
+        painter.end()
+        action.setIcon(QtGui.QIcon(canvas))
+
+    def _connect_menu_callbacks(self) -> None:
+        """Connects the menu buttons to their respective pages in the stack."""
+        for index, button in enumerate(self._navigation_buttons):
+            button.triggered.connect(lambda _, idx=index: self._activate_page(idx))
 
     def _load_bg(self) -> None:
-        """Loads the background image based on the configuration."""
-        bg_path = (
-            pathlib.Path(APP_CONFIG.background_path)
-            if APP_CONFIG.background_path
-            else None
+        self.setStyleSheet(BG_TEMPLATE.replace("$BG$", ""))
+        self.centralwidget.set_background(
+            APP_CONFIG.background_path, APP_CONFIG.background_mode or "stretched"
         )
-        if bg_path and bg_path.exists():
-            # Apply background with the selected mode
-            background_mode = APP_CONFIG.background_mode or "stretched"
 
-            if background_mode == "cropped":
-                # Use background-image with center positioning for cropped mode
-                bg_style = f"border-image: url('{APP_CONFIG.background_path}') 0 0 0 0 repeat repeat;"
-            else:  # stretched (default)
-                bg_style = f"border-image: url('{APP_CONFIG.background_path}');"
-
-            self.setStyleSheet(BG_TEMPLATE.replace("$BG$", bg_style))
-        else:
-            self.setStyleSheet(
-                f"{BG_TEMPLATE.replace('$BG$', 'border-image: url(:/ui/images/bg.png);')}"
-            )
+    def closeEvent(self, event):
+        self._window_settings.setValue("window/geometry", self.saveGeometry())
+        super().closeEvent(event)
