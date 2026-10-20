@@ -12,6 +12,8 @@
         <link rel="prev" href="../sleeve/">
       
       
+        <link rel="next" href="../character/">
+      
       
         
       
@@ -356,6 +358,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../backups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../card/" class="md-nav__link">
         
   
@@ -472,10 +502,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#resizing-and-image-fitting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resizing and image fitting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
       
         Features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search
       
     </span>
   </a>
@@ -552,6 +604,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../character/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Character Editor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -586,10 +666,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#resizing-and-image-fitting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resizing and image fitting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
       
         Features
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#search" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search
       
     </span>
   </a>
@@ -681,14 +783,29 @@
 <p>The Playmat Editor page allows you to modify playmat textures in Yu-Gi-Oh! Duel Links. This page provides
 functionality to view, replace, and manage playmat assets.</p>
 <p><img alt="Field Page Preview" src="../../assets/ui/field.png" /></p>
+<h2 id="resizing-and-image-fitting">Resizing and image fitting</h2>
+<p>Resize the window to scale the Current and Preview images. Drag the dotted divider
+between the editor and results to change their relative heights; the app remembers
+this position and the window size. Results wrap into columns as space becomes available.
+On smaller windows, scroll the editor to reach its controls.</p>
+<p>Select or drop an image, then choose <strong>Stretch</strong> or <strong>Crop</strong>. In Crop mode, drag the
+crop rectangle or its corner handles. Your crop stays in place when the window resizes.</p>
 <h2 id="features">Features</h2>
 <ul>
 <li>Playmat list with preview</li>
 <li>Playmat texture replacement</li>
+<li>Automatic backups of both playmat bundles when backups are enabled</li>
 <li>Texture extraction</li>
 <li>Bundle copying</li>
 <li>Real-time preview updates</li>
 </ul>
+<h2 id="search">Search</h2>
+<p>Type at least three characters of an asset name or bundle ID, then press Enter or
+click Search. Suggestions match any part of a name. Clear the search box to show
+all results again. Asset names appear below the thumbnails; hover for the full name
+and bundle ID. Unnamed assets display their bundle ID.</p>
+<p>Use <strong>Check</strong> on the Configuration page after upgrading to download the new asset
+names. Existing favorites and backup flags for sleeves and playmats are kept.</p>
 <h2 id="interface-elements">Interface Elements</h2>
 <h3 id="playmat-list">Playmat List</h3>
 <ul>
@@ -710,6 +827,10 @@ functionality to view, replace, and manage playmat assets.</p>
 <li><strong>Extract</strong>: Extract the playmat texture</li>
 </ul>
 <h2 id="usage">Usage</h2>
+<p>Enable backups in Configuration to save the original small and medium playmat
+textures under <code>backups/fields/</code> before replacement. Existing backups are kept
+when replacing the same playmat again. Use Configuration's <strong>Restore all</strong> action
+to restore backed-up textures, or the Backups page to export and import them.</p>
 <ol>
 <li>
 <p><strong>Selecting a Playmat</strong></p>
@@ -788,6 +909,22 @@ functionality to view, replace, and manage playmat assets.</p>
             </div>
           </a>
         
+        
+          
+          <a href="../character/" class="md-footer__link md-footer__link--next" aria-label="Next: Character Editor">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Character Editor
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
         
       </nav>
     

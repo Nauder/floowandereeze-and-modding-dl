@@ -12,7 +12,7 @@
         <link rel="prev" href="../..">
       
       
-        <link rel="next" href="../card/">
+        <link rel="next" href="../backups/">
       
       
         
@@ -424,6 +424,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#metadata-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata Source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#backup-management" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -487,6 +498,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backups/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backups
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -576,6 +615,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../character/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Character Editor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -637,6 +704,17 @@
     <span class="md-ellipsis">
       
         Game Path Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadata-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata Source
       
     </span>
   </a>
@@ -728,7 +806,7 @@
 <p><img alt="Configuration Page Preview" src="../../assets/ui/config.png" /></p>
 <h2 id="features">Features</h2>
 <ul>
-<li>Game path configuration</li>
+<li>Steam game discovery and manual game path configuration</li>
 <li>Data update management</li>
 <li>Backup system configuration</li>
 <li>Application appearance customization</li>
@@ -739,18 +817,37 @@
 <h2 id="interface-elements">Interface Elements</h2>
 <h3 id="game-path-settings">Game Path Settings</h3>
 <ul>
-<li><strong>Game Path</strong>: Set the path to the Duel Links installation, up to the player ID folder</li>
-<li><strong>Update Button</strong>: Check and update app data</li>
+<li><strong>Auto-detect</strong>: Find Duel Links accounts across your Steam libraries and select the account to use</li>
+<li><strong>Game Path</strong>: Select a Duel Links installation, its LocalData folder, or a player ID folder</li>
+<li><strong>Check Button</strong>: Check and update app data</li>
 <li><strong>Version Display</strong>: Show current data version</li>
 </ul>
+<h3 id="metadata-source">Metadata Source</h3>
+<ul>
+<li><strong>Metadata source</strong>: GitHub repository in <code>owner/repository</code> format, or a local repository folder. The default is <code>Nauder/floowandereeze-and-modding-etl-dl</code>.</li>
+<li><strong>Browse local…</strong>: Select the root of a local ETL checkout containing <code>data/version.txt</code> and the four asset Parquet files.</li>
+<li><strong>Metadata branch</strong>: GitHub branch or ref to download. Leave blank to use the repository's default branch. Disabled for local sources.</li>
+<li><strong>Save source</strong>: Save these settings for future checks.</li>
+<li><strong>Use defaults</strong>: Restore the default repository and clear the branch override.</li>
+</ul>
+<p>To test the asset-name branch, enter <code>feat/local-game-asset-names</code> in Metadata branch,
+then click <strong>Check</strong>. Check saves the source fields and downloads all asset datasets
+from that source. Switching sources refreshes the data even when the version dates
+match. The previous successful source and version are kept if a download fails.
+To return to the default data, click <strong>Use defaults</strong>, then <strong>Check</strong>.</p>
+<p>For local testing, click <strong>Browse local…</strong>, select your ETL repository, then click
+<strong>Check</strong>. The app reads files from the current working tree, including uncommitted
+changes, without contacting GitHub. Each local check reloads all four datasets even
+when <code>version.txt</code> has not changed. Rerun the ETL export and click <strong>Check</strong> to test
+new data; committing or publishing it is unnecessary. Missing files are reported
+before the source is saved.</p>
 <h3 id="backup-management">Backup Management</h3>
 <ul>
 <li><strong>Enable Backups</strong>: Toggle automatic backup creation</li>
 <li><strong>Restore All</strong>: Restore all modified assets with backups to their original state</li>
 <li><strong>Clear Backups</strong>: Delete all backup files</li>
-<li><strong>Restore Text Edits</strong>: Revert all text modifications to their original state</li>
-<li><strong>Reapply Text Edits</strong>: Reapply all previously made text modifications</li>
 </ul>
+<p>Use the <a href="../backups/">Backups tab</a> to browse saved originals, export or import ZIP archives, or remove selected backups.</p>
 <h3 id="appearance-settings">Appearance Settings</h3>
 <ul>
 <li><strong>Background Image</strong>: Set custom application background</li>
@@ -771,16 +868,17 @@
 <li>
 <p><strong>Setting Game Path</strong></p>
 <ul>
-<li>Click "Select Game Folder" to choose Duel Links installation</li>
-<li>Path is validated before being saved</li>
-<li>Application restart required after setting path, so assets are updated</li>
+<li>Click "Auto-detect" beside the game path and select a downloaded account</li>
+<li>You can also select the installation, LocalData folder, or player folder manually</li>
+<li>When several accounts are available, choose the one to edit</li>
+<li>Path is validated before being saved; asset tabs become available immediately</li>
 </ul>
 </li>
 <li>
 <p><strong>Updating Data</strong></p>
 <ul>
 <li>Set game path first</li>
-<li>Click "Update" to check for new data</li>
+<li>Click "Check" to check for new data</li>
 <li>Updates are downloaded automatically if available</li>
 </ul>
 </li>
@@ -790,8 +888,6 @@
 <li>Toggle "Enable Backups" to control automatic backup creation</li>
 <li>Use "Restore All" to revert all changes</li>
 <li>Use "Clear Backups" to remove backup files</li>
-<li>Use "Restore Text Edits" to revert all text modifications to their original state</li>
-<li>Use "Reapply Text Edits" to reapply all previously made text modifications</li>
 </ul>
 </li>
 <li>
@@ -818,10 +914,9 @@
 <li>Data updates require a valid game path first</li>
 <li>Backup system affects all asset types</li>
 <li>Asset settings affect all new replacements</li>
-<li>Some changes require application restart</li>
+<li>Asset tabs load when first opened and refresh after successful data updates</li>
 <li>Backups create local copies of assets, so they take storage space</li>
-<li>The text edit operations can take a <em>very</em> long time, depending on available resources and
-amount of cards modified</li>
+<li>Backgrounds can be stretched to fit or cropped to cover the window while preserving proportions</li>
 </ul>
 
 
@@ -869,13 +964,13 @@ amount of cards modified</li>
         
         
           
-          <a href="../card/" class="md-footer__link md-footer__link--next" aria-label="Next: Card Editor">
+          <a href="../backups/" class="md-footer__link md-footer__link--next" aria-label="Next: Backups">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Card Editor
+                Backups
               </div>
             </div>
             <div class="md-footer__button md-icon">
